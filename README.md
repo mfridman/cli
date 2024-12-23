@@ -151,13 +151,15 @@ Help text is automatically generated, but you can customize it by setting the `U
 
 When reading command usage strings, the following syntax is used:
 
-- `<required>` Required argument
-- `[optional]` Optional argument
-- `<arg...>` One or more arguments
-- `[arg...]` Zero or more arguments
-- `(a|b)` Must choose one of a or b
-- `[-f <file>]` Flag with value (optional)
-- `-f <file>` Flag with value (required)
+| Syntax        | Description                |
+| ------------- | -------------------------- |
+| `<required>`  | Required argument          |
+| `[optional]`  | Optional argument          |
+| `<arg...>`    | One or more arguments      |
+| `[arg...]`    | Zero or more arguments     |
+| `(a\|b)`      | Must choose one of a or b  |
+| `[-f <file>]` | Flag with value (optional) |
+| `-f <file>`   | Flag with value (required) |
 
 Examples:
 
