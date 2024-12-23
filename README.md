@@ -184,6 +184,16 @@ git (pull|push) [remote]
 This project is in active development. Please open an issue if you encounter any problems or have
 suggestions for improvement.
 
+## Acknowledgements
+
+There are many great CLI libraries out there, but I always felt [they were too heavy for my
+needs](https://mfridman.com/blog/2021/a-simpler-building-block-for-go-clis/).
+
+I was inspired by Peter Bourgon's [ff](https://github.com/peterbourgon/ff) library, specifically the
+`v3` branch, which was soooo close to what I wanted. But the `v4` branch took a different direction
+and I wanted to keep the simplicity of the `v3` branch. This library aims to pick up where `ff/v3`
+left off.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
