@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # go-version: ['oldstable', 'stable', '1.23.0-rc.2']
+        go-version: ["oldstable", "stable"]
+    env:
+      VERBOSE: 1
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Install tparse
+        run: go install github.com/mfridman/tparse@main
+      - name: Build
+        run: go build -v .
+      - name: Run tests
+        shell: bash
+        run: |
+          go test $(go list ./... | grep -v 'examples') -count=1 -v -json -cover \
+            | tparse -all -follow -sort=elapsed -trimpath=auto

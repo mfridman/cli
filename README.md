@@ -1,8 +1,8 @@
 # cli
 
 [![GoDoc](https://godoc.org/github.com/mfridman/cli?status.svg)](https://godoc.org/github.com/mfridman/cli)
-[![Go Report
-Card](https://goreportcard.com/badge/github.com/mfridman/cli)](https://goreportcard.com/report/github.com/mfridman/cli)
+[![Go Report Card](https://goreportcard.com/badge/github.com/mfridman/cli)](https://goreportcard.com/report/github.com/mfridman/cli)
+[![Actions](https://github.com/mfridman/cli/workflows/ci/badge.svg)](https://github.com/mfridman/cli)
 
 A lightweight framework for building Go CLI applications with nested subcommands.
 
