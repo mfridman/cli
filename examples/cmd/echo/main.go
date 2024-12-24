@@ -20,8 +20,8 @@ func main() {
 			// Add a flag to capitalize the input
 			f.Bool("c", false, "capitalize the input")
 		}),
-		RequiredFlags: []string{
-			"c",
+		FlagsMetadata: []cli.FlagMetadata{
+			{Name: "c", Required: true},
 		},
 		Exec: func(ctx context.Context, s *cli.State) error {
 			if len(s.Args) == 0 {
@@ -30,7 +30,7 @@ func main() {
 			}
 			output := strings.Join(s.Args, " ")
 			// If -c flag is set, capitalize the output
-			if cli.GetFlag[bool](s, "c") || cli.GetFlag[bool](s, "capitalize") {
+			if cli.GetFlag[bool](s, "c") {
 				output = strings.ToUpper(output)
 			}
 			fmt.Fprintln(s.Stdout, output)

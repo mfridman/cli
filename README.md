@@ -40,6 +40,9 @@ root := &cli.Command{
 		// Add a flag to capitalize the input
 		f.Bool("c", false, "capitalize the input")
 	}),
+	FlagsMetadata: []cli.FlagMetadata{
+		{Name: "c", Required: true},
+	},
 	Exec: func(ctx context.Context, s *cli.State) error {
 		if len(s.Args) == 0 {
 			// Return a new error with the error code ErrShowHelp
@@ -73,13 +76,14 @@ Each command in your CLI application is represented by a `Command` struct:
 
 ```go
 type Command struct {
-	Name        string
-	Exec        func(ctx context.Context, s *State) error
-	Usage       string
-	ShortHelp   string
-	Flags       *flag.FlagSet
-	SubCommands []*Command
-	UsageFunc   func(*Command) string
+	Name          string
+	Usage         string
+	ShortHelp     string
+	UsageFunc     func(*Command) string
+	Flags         *flag.FlagSet
+	FlagsMetadata []FlagMetadata
+	SubCommands   []*Command
+	Exec          func(ctx context.Context, s *State) error
 }
 ```
 
@@ -182,7 +186,7 @@ git (pull|push) [remote]
 This project is in active development and undergoing changes as the API is refined. Please open an
 issue if you encounter any problems or have suggestions for improvement.
 
-- [ ] Nail down required flags implementation
+- [x] Nail down required flags implementation
 - [ ] Add tests for typos and command suggestions, crude levenstein distance for now
 - [ ] Internal implementation (not user-facing), track selected `*Command` in `*State` and remove
       `flags  *flag.FlagSet` from `*State`

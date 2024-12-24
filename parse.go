@@ -111,27 +111,31 @@ func Parse(root *Command, args []string) error {
 	}
 
 	// Check required flags by inspecting the args string for their presence
-	if len(current.RequiredFlags) > 0 {
+	if len(current.FlagsMetadata) > 0 {
 		var missingFlags []string
-		for _, flagName := range current.RequiredFlags {
-			flag := combinedFlags.Lookup(flagName)
+		for _, flagMetadata := range current.FlagsMetadata {
+			if !flagMetadata.Required {
+				continue
+			}
+			// TODO(mf): we need to validate that the metadata flag is known to the flag set
+			flag := combinedFlags.Lookup(flagMetadata.Name)
 			if flag == nil {
-				return fmt.Errorf("command %q: internal error: required flag %q not found in flag set", current.Name, flagName)
+				return fmt.Errorf("command %q: internal error: required flag %q not found in flag set", current.Name, flagMetadata.Name)
 			}
 
 			// Look for the flag in the original args before any delimiter
 			found := false
 			for _, arg := range argsToParse {
 				// Match either -flag or --flag
-				if arg == "-"+flagName || arg == "--"+flagName ||
-					strings.HasPrefix(arg, "-"+flagName+"=") ||
-					strings.HasPrefix(arg, "--"+flagName+"=") {
+				if arg == "-"+flagMetadata.Name || arg == "--"+flagMetadata.Name ||
+					strings.HasPrefix(arg, "-"+flagMetadata.Name+"=") ||
+					strings.HasPrefix(arg, "--"+flagMetadata.Name+"=") {
 					found = true
 					break
 				}
 			}
 			if !found {
-				missingFlags = append(missingFlags, flagName)
+				missingFlags = append(missingFlags, flagMetadata.Name)
 			}
 		}
 		if len(missingFlags) > 0 {

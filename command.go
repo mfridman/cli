@@ -32,12 +32,9 @@ type Command struct {
 	// Flags holds the command-specific flag definitions. Each command maintains its own flag set
 	// for parsing arguments.
 	Flags *flag.FlagSet
-	// RequiredFlags is a list of flag names that are required for the command to run. If any of
-	// these flags are missing, the command will not execute and will show its help text instead.
-	//
-	// TODO(mf): maybe thise should be a proper data structure instead of a list of strings to allow
-	// for more flexibility in the future.
-	RequiredFlags []string
+	// FlagsMetadata is an optional list of flag information to extend the FlagSet with additional
+	// metadata. This is useful for tracking required flags.
+	FlagsMetadata []FlagMetadata
 
 	// SubCommands is a list of nested commands that exist under this command.
 	SubCommands []*Command
@@ -53,6 +50,15 @@ type Command struct {
 	state *State
 	// TODO(mf): remove this in favor of tracking the selected *Command in the state
 	selected *Command
+}
+
+// FlagMetadata holds additional metadata for a flag, such as whether it is required.
+type FlagMetadata struct {
+	// Name is the flag's name. Must match the flag name in the flag set.
+	Name string
+
+	// Required indicates whether the flag is required.
+	Required bool
 }
 
 // FlagsFunc is a helper function that creates a new [flag.FlagSet] and applies the given function
