@@ -325,7 +325,7 @@ func (c *Command) getSuggestions(unknownCmd string) []string {
 func (c *Command) formatUnknownCommandError(unknownCmd string) error {
 	suggestions := c.getSuggestions(unknownCmd)
 	if len(suggestions) > 0 {
-		return fmt.Errorf("unknown command %q\nDid you mean one of these?\n\t%s",
+		return fmt.Errorf("unknown command %q. Did you mean one of these?\n\t%s",
 			unknownCmd,
 			strings.Join(suggestions, "\n\t"))
 	}

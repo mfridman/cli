@@ -13,6 +13,7 @@ func TestRun(t *testing.T) {
 	t.Parallel()
 
 	t.Run("parse and run", func(t *testing.T) {
+		t.Parallel()
 		var count int
 
 		root := &Command{
@@ -58,5 +59,28 @@ func TestRun(t *testing.T) {
 		err = ParseAndRun(context.Background(), root, []string{"--dry-run"}, nil)
 		require.NoError(t, err)
 		require.Equal(t, 3, count)
+	})
+	t.Run("typo suggestion", func(t *testing.T) {
+		t.Parallel()
+		root := &Command{
+			Name:  "count",
+			Usage: "count [flags] [command]",
+			SubCommands: []*Command{
+				{
+					Name:  "version",
+					Usage: "show version",
+					Exec: func(ctx context.Context, s *State) error {
+						_, _ = s.Stdout.Write([]byte("1.0.0\n"))
+						return nil
+					},
+				},
+			},
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+
+		err := ParseAndRun(context.Background(), root, []string{"verzion"}, nil)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `unknown command "verzion". Did you mean one of these?`)
+		require.Contains(t, err.Error(), `	version`)
 	})
 }
