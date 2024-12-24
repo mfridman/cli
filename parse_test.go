@@ -18,32 +18,30 @@ import (
 //	 └── nested --force
 //		└── sub --echo
 type testState struct {
-	add *Command
-
+	add         *Command
 	nested, sub *Command
-
-	root *Command
+	root        *Command
 }
 
 func newTestState() testState {
 	exec := func(ctx context.Context, s *State) error { return errors.New("not implemented") }
 	add := &Command{
 		Name: "add",
-		Flags: FlagSetFunc(func(fset *flag.FlagSet) {
+		Flags: FlagsFunc(func(fset *flag.FlagSet) {
 			fset.Bool("dry-run", false, "enable dry-run mode")
 		}),
 		Exec: exec,
 	}
 	sub := &Command{
 		Name: "sub",
-		Flags: FlagSetFunc(func(fset *flag.FlagSet) {
+		Flags: FlagsFunc(func(fset *flag.FlagSet) {
 			fset.String("echo", "", "echo the message")
 		}),
 		Exec: exec,
 	}
 	nested := &Command{
 		Name: "nested",
-		Flags: FlagSetFunc(func(fset *flag.FlagSet) {
+		Flags: FlagsFunc(func(fset *flag.FlagSet) {
 			fset.Bool("force", false, "force the operation")
 		}),
 		SubCommands: []*Command{sub},
@@ -51,7 +49,7 @@ func newTestState() testState {
 	}
 	root := &Command{
 		Name: "todo",
-		Flags: FlagSetFunc(func(fset *flag.FlagSet) {
+		Flags: FlagsFunc(func(fset *flag.FlagSet) {
 			fset.Bool("verbose", false, "enable verbose mode")
 			fset.Bool("version", false, "show version")
 		}),
@@ -106,7 +104,7 @@ func TestParse(t *testing.T) {
 		err := Parse(&Command{
 			Name:  "root",
 			Usage: "root [flags]",
-			Flags: FlagSetFunc(func(fset *flag.FlagSet) {
+			Flags: FlagsFunc(func(fset *flag.FlagSet) {
 				fset.SetOutput(by)
 			}),
 		}, []string{"--help"})
@@ -132,7 +130,7 @@ func TestParse(t *testing.T) {
 
 		err := Parse(s.root, []string{"add", "--unknown", "item1"})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), `error in command "add"`)
+		require.Contains(t, err.Error(), `command "add": flag provided but not defined: -unknown`)
 	})
 	t.Run("with subcommand flags", func(t *testing.T) {
 		t.Parallel()

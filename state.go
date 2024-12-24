@@ -17,6 +17,7 @@ type State struct {
 	Stdin          io.Reader
 	Stdout, Stderr io.Writer
 
+	// TODO(mf): remove flags in favor of tracking the selected *Command
 	flags  *flag.FlagSet
 	parent *State
 }
@@ -34,10 +35,16 @@ type State struct {
 // definition, and it's better to fail LOUD and EARLY than to silently ignore the issue and cause
 // unexpected behavior.
 func GetFlag[T any](s *State, name string) T {
-	// Try to get flag from current command's flags
+	// TODO(mf): we should have a way to get the selected command here to improve error messages
 	if f := s.flags.Lookup(name); f != nil {
-		if v, ok := f.Value.(flag.Getter).Get().(T); ok {
-			return v
+		if getter, ok := f.Value.(flag.Getter); ok {
+			value := getter.Get()
+			if v, ok := value.(T); ok {
+				return v
+			}
+			msg := fmt.Sprintf("internal error: type mismatch for flag %q: registered %T, requested %T", name, value, *new(T))
+			// Flag exists but type doesn't match - this is an internal error
+			panic(msg)
 		}
 	}
 	// If not found and we have a parent, try parent's flags
@@ -45,5 +52,6 @@ func GetFlag[T any](s *State, name string) T {
 		return GetFlag[T](s.parent, name)
 	}
 	// If flag not found anywhere in hierarchy, panic with helpful message
-	panic(fmt.Sprintf("flag not found: %q in %s flag set, consider filing an issue with the cli author", name, s.flags.Name()))
+	msg := fmt.Sprintf("internal error: flag not found: %q in %s flag set", name, s.flags.Name())
+	panic(msg)
 }

@@ -20,9 +20,9 @@ type Command struct {
 	// Example: "cli todo list [flags]"
 	Usage string
 
-	// Description is a one-line description of the command's purpose. This appears in command
-	// listings and brief help outputs.
-	Description string
+	// ShortHelp is a brief description of the command's purpose. It is displayed in the help text
+	// when the command is shown.
+	ShortHelp string
 
 	// UsageFunc is an optional function that can be used to generate a custom usage string for the
 	// command. It receives the current command and should return a string with the full usage
@@ -32,6 +32,12 @@ type Command struct {
 	// Flags holds the command-specific flag definitions. Each command maintains its own flag set
 	// for parsing arguments.
 	Flags *flag.FlagSet
+	// RequiredFlags is a list of flag names that are required for the command to run. If any of
+	// these flags are missing, the command will not execute and will show its help text instead.
+	//
+	// TODO(mf): maybe thise should be a proper data structure instead of a list of strings to allow
+	// for more flexibility in the future.
+	RequiredFlags []string
 
 	// SubCommands is a list of nested commands that exist under this command.
 	SubCommands []*Command
@@ -44,33 +50,23 @@ type Command struct {
 	// is called.
 	Exec func(ctx context.Context, s *State) error
 
-	state    *State
+	state *State
+	// TODO(mf): remove this in favor of tracking the selected *Command in the state
 	selected *Command
 }
 
-// FlagSetFunc is a helper function that creates a new [flag.FlagSet] and applies the given function
+// FlagsFunc is a helper function that creates a new [flag.FlagSet] and applies the given function
 // to it. Intended for use in command definitions to simplify flag setup. Example usage:
 //
-//	cmd.Flags = cli.FlagSetFunc(func(f *flag.FlagSet) {
+//	cmd.Flags = cli.FlagsFunc(func(f *flag.FlagSet) {
 //	    f.Bool("verbose", false, "enable verbose output")
 //	    f.String("output", "", "output file")
 //	    f.Int("count", 0, "number of items")
 //	})
-func FlagSetFunc(fn func(*flag.FlagSet)) *flag.FlagSet {
+func FlagsFunc(fn func(*flag.FlagSet)) *flag.FlagSet {
 	fset := flag.NewFlagSet("", flag.ContinueOnError)
 	fn(fset)
 	return fset
-}
-
-// HelpError is a special error type that can be returned from a command's execution function to
-// indicate that the command should display its help text. This is useful when a command encounters
-// an error, such as missing arguments, and should show the user how to use the command correctly.
-type HelpError struct {
-	Err error
-}
-
-func (e *HelpError) Error() string {
-	return e.Err.Error()
 }
 
 // findSubCommand searches for a subcommand by name and returns it if found. Returns nil if no
@@ -93,8 +89,8 @@ func (c *Command) showHelp() error {
 	}
 
 	// Display command description first if available, with wrapping
-	if c.Description != "" {
-		for _, line := range wrapText(c.Description, 80) {
+	if c.ShortHelp != "" {
+		for _, line := range wrapText(c.ShortHelp, 80) {
 			fmt.Fprintf(w, "%s\n", line)
 		}
 		fmt.Fprintln(w)
@@ -133,7 +129,7 @@ func (c *Command) showHelp() error {
 		}
 
 		for _, sub := range sortedCommands {
-			if sub.Description == "" {
+			if sub.ShortHelp == "" {
 				fmt.Fprintf(w, "  %s\n", sub.Name)
 				continue
 			}
@@ -141,7 +137,7 @@ func (c *Command) showHelp() error {
 			nameWidth := maxLen + 4
 			wrapWidth := 80 - nameWidth
 
-			lines := wrapText(sub.Description, wrapWidth)
+			lines := wrapText(sub.ShortHelp, wrapWidth)
 			padding := strings.Repeat(" ", maxLen-len(sub.Name)+4)
 			fmt.Fprintf(w, "  %s%s%s\n", sub.Name, padding, lines[0])
 

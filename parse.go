@@ -20,12 +20,11 @@ func Parse(root *Command, args []string) error {
 	if root == nil {
 		return fmt.Errorf("failed to parse: root command is nil")
 	}
-	// Validate all commands have names
 	if err := validateCommands(root, nil); err != nil {
 		return fmt.Errorf("failed to parse: %w", err)
 	}
 
-	// Initialize root command state and flags if needed
+	// Initialize root state
 	if root.state == nil {
 		root.state = &State{}
 	}
@@ -36,85 +35,69 @@ func Parse(root *Command, args []string) error {
 		root.state.flags = root.Flags
 	}
 
-	current := root
-	current.selected = current
-
-	// Handle "--" delimiter for separating flags from positional arguments
-	delimiterPos := -1
+	// First split args at the -- delimiter if present
+	var argsToParse []string
+	var remainingArgs []string
 	for i, arg := range args {
 		if arg == "--" {
-			delimiterPos = i
+			argsToParse = args[:i]
+			remainingArgs = args[i+1:]
 			break
 		}
 	}
-	// If we found a delimiter, only traverse commands before it
-	argsToTraverse := args
-	var afterDelimiter []string
-	if delimiterPos >= 0 {
-		argsToTraverse = args[:delimiterPos]
-		if delimiterPos+1 < len(args) {
-			afterDelimiter = args[delimiterPos+1:]
-		}
+	if argsToParse == nil {
+		argsToParse = args
 	}
 
-	// Track command chain for proper arg handling, this ensures that subcommands aren't included in
-	// the final argument list
+	current := root
 	var commandChain []*Command
 	commandChain = append(commandChain, root)
 
-	// Process commands
-	for len(argsToTraverse) > 0 {
-		// Check for help flags at current level
-		switch argsToTraverse[0] {
-		case "-h", "--h", "-help", "--help":
+	// Create combined flags with all parent flags
+	combinedFlags := flag.NewFlagSet(root.Name, flag.ContinueOnError)
+	combinedFlags.SetOutput(io.Discard)
+
+	// First pass: process commands and build the flag set This lets us capture help requests before
+	// any flag parsing errors
+	for _, arg := range argsToParse {
+		if arg == "-h" || arg == "--h" || arg == "-help" || arg == "--help" {
+			combinedFlags.Usage = func() { _ = current.showHelp() }
 			return current.showHelp()
 		}
 
-		// Skip flags while looking for commands
-		if strings.HasPrefix(argsToTraverse[0], "-") {
-			argsToTraverse = argsToTraverse[1:]
+		// Skip anything that looks like a flag
+		if strings.HasPrefix(arg, "-") {
 			continue
 		}
 
-		// Look for subcommand
-		if sub := current.findSubCommand(argsToTraverse[0]); sub != nil {
-			// Initialize subcommand state if needed
-			if sub.state == nil {
-				sub.state = &State{}
+		// Try to traverse to subcommand
+		if len(current.SubCommands) > 0 {
+			if sub := current.findSubCommand(arg); sub != nil {
+				if sub.state == nil {
+					sub.state = &State{}
+				}
+				if sub.Flags == nil {
+					sub.Flags = flag.NewFlagSet(sub.Name, flag.ContinueOnError)
+				}
+				sub.state.flags = sub.Flags
+				sub.state.parent = current.state
+				current = sub
+				commandChain = append(commandChain, sub)
+				continue
 			}
-			if sub.Flags == nil {
-				sub.Flags = flag.NewFlagSet(sub.Name, flag.ContinueOnError)
-			}
-			sub.state.flags = sub.Flags
-			sub.state.parent = current.state
-			current = sub
-			commandChain = append(commandChain, sub)
-			argsToTraverse = argsToTraverse[1:]
-		} else {
-			if len(current.SubCommands) > 0 {
-				return current.formatUnknownCommandError(argsToTraverse[0])
-			}
-			break
+			return current.formatUnknownCommandError(arg)
 		}
+		break
 	}
 
-	// Store the current command for testing/reference
+	// Store selected command
 	root.selected = current
 
-	// Create a combined FlagSet with strict hierarchy
-	combinedFlags := flag.NewFlagSet(current.Name, flag.ContinueOnError)
-	combinedFlags.SetOutput(io.Discard)
-	combinedFlags.Usage = func() {
-		_ = current.showHelp()
-	}
-
-	// Add flags in reverse order (current command first, then parents) This ensures proper flag
-	// precedence
+	// Add flags in reverse order for proper precedence
 	for i := len(commandChain) - 1; i >= 0; i-- {
 		cmd := commandChain[i]
 		if cmd.Flags != nil {
 			cmd.Flags.VisitAll(func(f *flag.Flag) {
-				// Only add the flag if it hasn't been defined yet
 				if combinedFlags.Lookup(f.Name) == nil {
 					combinedFlags.Var(f.Value, f.Name, f.Usage)
 				}
@@ -122,23 +105,44 @@ func Parse(root *Command, args []string) error {
 		}
 	}
 
-	// Parse flags up to delimiter if present
-	argsToParse := args
-	if delimiterPos >= 0 {
-		argsToParse = args[:delimiterPos]
-	}
-
+	// Let ParseToEnd handle the flag parsing
 	if err := xflag.ParseToEnd(combinedFlags, argsToParse); err != nil {
-		return fmt.Errorf("error in command %q: %w", current.Name, err)
+		return fmt.Errorf("command %q: %w", current.Name, err)
 	}
 
-	// Get remaining args that weren't consumed by flag parsing
-	remaining := combinedFlags.Args()
+	// Check required flags by inspecting the args string for their presence
+	if len(current.RequiredFlags) > 0 {
+		var missingFlags []string
+		for _, flagName := range current.RequiredFlags {
+			flag := combinedFlags.Lookup(flagName)
+			if flag == nil {
+				return fmt.Errorf("command %q: internal error: required flag %q not found in flag set", current.Name, flagName)
+			}
 
-	// Find where the actual arguments start by skipping past command names
+			// Look for the flag in the original args before any delimiter
+			found := false
+			for _, arg := range argsToParse {
+				// Match either -flag or --flag
+				if arg == "-"+flagName || arg == "--"+flagName ||
+					strings.HasPrefix(arg, "-"+flagName+"=") ||
+					strings.HasPrefix(arg, "--"+flagName+"=") {
+					found = true
+					break
+				}
+			}
+			if !found {
+				missingFlags = append(missingFlags, flagName)
+			}
+		}
+		if len(missingFlags) > 0 {
+			return fmt.Errorf("command %q: required flag(s) %q not set", current.Name, strings.Join(missingFlags, ", "))
+		}
+	}
+
+	// Skip past command names in remaining args from flag parsing
+	parsed := combinedFlags.Args()
 	startIdx := 0
-	for _, arg := range remaining {
-		// Check if this arg matches any command in our chain
+	for _, arg := range parsed {
 		isCommand := false
 		for _, cmd := range commandChain {
 			if arg == cmd.Name {
@@ -152,15 +156,15 @@ func Parse(root *Command, args []string) error {
 		}
 	}
 
-	// Only slice if we have a valid start index
-	if startIdx < len(remaining) {
-		remaining = remaining[startIdx:]
-	} else {
-		remaining = nil
+	// Combine remaining parsed args and everything after delimiter
+	var finalArgs []string
+	if startIdx < len(parsed) {
+		finalArgs = append(finalArgs, parsed[startIdx:]...)
 	}
-
-	// Store remaining args plus anything after delimiter
-	current.state.Args = append(remaining, afterDelimiter...)
+	if len(remainingArgs) > 0 {
+		finalArgs = append(finalArgs, remainingArgs...)
+	}
+	current.state.Args = finalArgs
 
 	return nil
 }

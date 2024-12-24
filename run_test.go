@@ -18,7 +18,7 @@ func TestRun(t *testing.T) {
 		root := &Command{
 			Name:  "count",
 			Usage: "count [flags] [command]",
-			Flags: FlagSetFunc(func(fset *flag.FlagSet) {
+			Flags: FlagsFunc(func(fset *flag.FlagSet) {
 				fset.Bool("dry-run", false, "dry run")
 			}),
 			SubCommands: []*Command{

@@ -48,11 +48,12 @@ func Run(ctx context.Context, root *Command, options *RunOptions) error {
 		return root.selected.showHelp()
 	}
 	if root.selected.Exec == nil {
-		return noExecError(root.selected.Name)
+		return fmt.Errorf("command %q has no execution function", root.selected.Name)
 	}
 
 	if err := root.selected.Exec(ctx, root.selected.state); err != nil {
-		if helpErr := (*HelpError)(nil); errors.As(err, &helpErr) {
+		// TODO(mf): revisit this error handling, not even sure if it's necessary
+		if cliErr := (*Error)(nil); errors.As(err, &cliErr) {
 			_ = root.selected.showHelp()
 			return err
 		}
@@ -87,8 +88,4 @@ func checkAndSetRunOptions(opt *RunOptions) *RunOptions {
 		opt.Stderr = os.Stderr
 	}
 	return opt
-}
-
-func noExecError(name string) error {
-	return fmt.Errorf("command %q has no execution function", name)
 }

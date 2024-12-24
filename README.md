@@ -29,21 +29,24 @@ Required go version: 1.21 or higher
 
 ## Quick Start
 
-Here's a simple example of a todo list manager CLI:
+Here's a simple example of a CLI application that echoes back the input:
 
 ```go
 root := &cli.Command{
-	Name:        "echo",
-	Usage:       "echo <text...> [flags]",
-	Description: "Echo is a simple command that echoes back the input",
-	Flags: cli.FlagSetFunc(func(f *flag.FlagSet) {
+	Name:      "echo",
+	Usage:     "echo <text...> [flags]",
+	ShortHelp: "echo is a simple command that prints the provided text",
+	Flags: cli.FlagsFunc(func(f *flag.FlagSet) {
+		// Add a flag to capitalize the input
 		f.Bool("c", false, "capitalize the input")
 	}),
 	Exec: func(ctx context.Context, s *cli.State) error {
 		if len(s.Args) == 0 {
-			return &cli.HelpError{Err: errors.New("missing input to echo")}
+			// Return a new error with the error code ErrShowHelp
+			return fmt.Errorf("no text provided")
 		}
 		output := strings.Join(s.Args, " ")
+		// If -c flag is set, capitalize the output
 		if cli.GetFlag[bool](s, "c") {
 			output = strings.ToUpper(output)
 		}
@@ -73,7 +76,7 @@ type Command struct {
 	Name        string
 	Exec        func(ctx context.Context, s *State) error
 	Usage       string
-	Description string
+	ShortHelp   string
 	Flags       *flag.FlagSet
 	SubCommands []*Command
 	UsageFunc   func(*Command) string
@@ -82,17 +85,17 @@ type Command struct {
 
 The `Name` field is the command's name and is **required**.
 
-The `Usage` and `Description` fields are used to generate help text. Nice-to-have but not required.
+The `Usage` and `ShortHelp` fields are used to generate help text. Nice-to-have but not required.
 
 The `Flags` field is a `*flag.FlagSet` that defines the command's flags. The `SubCommands` field is
 a slice of child commands.
 
 > [!TIP]
 >
-> There's a top-level convenience function `FlagSetFunc` that allows you to define flags inline:
+> There's a top-level convenience function `FlagsFunc` that allows you to define flags inline:
 
 ```go
-cmd.Flags = cli.FlagSetFunc(func(fs *flag.FlagSet) {
+cmd.Flags = cli.FlagsFunc(func(fs *flag.FlagSet) {
 	fs.Bool("verbose", false, "enable verbose output")
 	fs.String("output", "", "output file")
 	fs.Int("count", 0, "number of items")
@@ -125,7 +128,7 @@ Child commands automatically inherit their parent command's flags:
 // Parent command with a verbose flag
 root := cli.Command{
 	Name: "root",
-	Flags: cli.FlagSetFunc(func(f *flag.FlagSet) {
+	Flags: cli.FlagsFunc(func(f *flag.FlagSet) {
 		f.Bool("verbose", false, "enable verbose mode")
 	}),
 }
