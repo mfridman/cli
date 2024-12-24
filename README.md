@@ -177,15 +177,20 @@ ssh [-p <port>] <user@host>
 git (pull|push) [remote]
 ```
 
-## Future Work
-
-- [ ] Add required flags support
-- [ ] Improve Help text generation (consider a `clihelp` package for standalone use)
-
 ## Status
 
-This project is in active development. Please open an issue if you encounter any problems or have
-suggestions for improvement.
+This project is in active development and undergoing changes as the API is refined. Please open an
+issue if you encounter any problems or have suggestions for improvement.
+
+- [ ] Nail down required flags implementation
+- [ ] Add tests for typos and command suggestions, crude levenstein distance for now
+- [ ] Internal implementation (not user-facing), track selected `*Command` in `*State` and remove
+      `flags  *flag.FlagSet` from `*State`
+- [ ] Figure out whether to keep `*Error` and whether to catch `ErrShowHelp` in `ParseAndRun`
+- [ ] Should `Parse`, `Run` and `ParseAndRun` be methods on `*Command`?
+- [ ] What to do with `showHelp()`, should it be a standalone function or an exported method on
+      `*Command`?
+- [ ] Is there room for `clihelp` package for standalone use?
 
 ## Acknowledgements
 
