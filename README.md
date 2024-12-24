@@ -2,7 +2,8 @@
 
 [![GoDoc](https://godoc.org/github.com/mfridman/cli?status.svg)](https://godoc.org/github.com/mfridman/cli)
 [![CI](https://github.com/mfridman/cli/actions/workflows/ci.yaml/badge.svg)](https://github.com/mfridman/cli/actions/workflows/ci.yaml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/mfridman/cli)](https://goreportcard.com/report/github.com/mfridman/cli)
+[![Go Report
+Card](https://goreportcard.com/badge/github.com/mfridman/cli)](https://goreportcard.com/report/github.com/mfridman/cli)
 
 A lightweight framework for building Go CLI applications with nested subcommands.
 
@@ -12,12 +13,15 @@ library requires flags before arguments.
 
 ## Features
 
-- **Nested Commands**: Build hierarchical command structures (like `git remote add`)
-- **Flexible Flag Parsing**: Supports flags and arguments in any order
-  - **Inherited Flags**: Child commands can access parent flags
-  - **Type-Safe Flags**: Type-inferred flag accessors
-- **Built-in Help**: Automatic help text generation
-- **Auto Suggestions**: Suggests similar commands when users make typos
+- Nested subcommands for organizing complex CLIs
+- Flexible flag parsing, allowing flags anywhere on the CLI
+- Subcommands inherit flags from parent commands
+- Type-safe flag access
+- Automatic generation of help text and usage information
+- Suggestions for misspelled or incomplete commands
+
+And that's it! It's the bare minimum to build a CLI application in Go while leveraging the standard
+library's `flag` package.
 
 ## Installation
 
