@@ -17,8 +17,7 @@ type State struct {
 	Stdin          io.Reader
 	Stdout, Stderr io.Writer
 
-	// TODO(mf): remove flags in favor of tracking the selected *Command
-	flags  *flag.FlagSet
+	cmd    *Command // Reference to the command this state belongs to
 	parent *State
 }
 
@@ -36,7 +35,7 @@ type State struct {
 // unexpected behavior.
 func GetFlag[T any](s *State, name string) T {
 	// TODO(mf): we should have a way to get the selected command here to improve error messages
-	if f := s.flags.Lookup(name); f != nil {
+	if f := s.cmd.Flags.Lookup(name); f != nil {
 		if getter, ok := f.Value.(flag.Getter); ok {
 			value := getter.Get()
 			if v, ok := value.(T); ok {
@@ -52,6 +51,6 @@ func GetFlag[T any](s *State, name string) T {
 		return GetFlag[T](s.parent, name)
 	}
 	// If flag not found anywhere in hierarchy, panic with helpful message
-	msg := fmt.Sprintf("internal error: flag not found: %q in %s flag set", name, s.flags.Name())
+	msg := fmt.Sprintf("internal error: flag not found: %q in %s flag set", name, s.cmd.Name)
 	panic(msg)
 }

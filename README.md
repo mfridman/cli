@@ -2,26 +2,34 @@
 
 [![GoDoc](https://godoc.org/github.com/mfridman/cli?status.svg)](https://godoc.org/github.com/mfridman/cli)
 [![CI](https://github.com/mfridman/cli/actions/workflows/ci.yaml/badge.svg)](https://github.com/mfridman/cli/actions/workflows/ci.yaml)
-[![Go Report
-Card](https://goreportcard.com/badge/github.com/mfridman/cli)](https://goreportcard.com/report/github.com/mfridman/cli)
 
-A lightweight framework for building Go CLI applications with nested subcommands.
-
-Supports flexible flag placement ([allowing flags anywhere on the
-CLI](https://mfridman.com/blog/2024/allowing-flags-anywhere-on-the-cli/)), since Go's standard
-library requires flags before arguments.
+A Go framework for building CLI applications with flexible flag placement. Extends the standard
+library's `flag` package to support [flags
+anywhere](https://mfridman.com/blog/2024/allowing-flags-anywhere-on-the-cli/) in command arguments.
 
 ## Features
 
 - Nested subcommands for organizing complex CLIs
-- Flexible flag parsing, allowing flags anywhere on the CLI
+- Flexible flag parsing, allowing flags anywhere
 - Subcommands inherit flags from parent commands
 - Type-safe flag access
 - Automatic generation of help text and usage information
 - Suggestions for misspelled or incomplete commands
 
-And that's it! It's the bare minimum to build a CLI application in Go while leveraging the standard
+And that's it! It's the **bare minimum to build a CLI application** while leveraging the standard
 library's `flag` package.
+
+### But why?
+
+This framework embraces minimalism while maintaining functionality. It provides essential building
+blocks for CLI applications without the bloat, allowing you to:
+
+- Build maintainable command-line tools quickly
+- Focus on application logic rather than framework complexity
+- Extend functionality **only when needed**
+
+Sometimes less is more. While other frameworks offer extensive features, this package focuses on
+core functionality.
 
 ## Installation
 
@@ -100,15 +108,24 @@ a slice of child commands.
 
 > [!TIP]
 >
-> There's a top-level convenience function `FlagsFunc` that allows you to define flags inline:
+> There's a convenience function `FlagsFunc` that allows you to define flags inline:
 
 ```go
-cmd.Flags = cli.FlagsFunc(func(fs *flag.FlagSet) {
-	fs.Bool("verbose", false, "enable verbose output")
-	fs.String("output", "", "output file")
-	fs.Int("count", 0, "number of items")
-})
+root := &cli.Command{
+	Flags: cli.FlagsFunc(func(f *flag.FlagSet) {
+		fs.Bool("verbose", false, "enable verbose output")
+		fs.String("output", "", "output file")
+		fs.Int("count", 0, "number of items")
+	}),
+	FlagsMetadata: []cli.FlagMetadata{
+		{Name: "c", Required: true},
+	},
+}
 ```
+
+The `FlagsMetadata` field is a slice of `FlagMetadata` structs that define metadata for each flag.
+Unfortunatly, the `flag.FlagSet` package alone is a bit limiting, so this package adds a layer on
+top to provide the most common features.
 
 The `Exec` field is a function that is called when the command is executed. This is where you put
 your business logic.

@@ -26,13 +26,7 @@ func Parse(root *Command, args []string) error {
 
 	// Initialize root state
 	if root.state == nil {
-		root.state = &State{}
-	}
-	if root.state.flags == nil {
-		if root.Flags == nil {
-			root.Flags = flag.NewFlagSet(root.Name, flag.ContinueOnError)
-		}
-		root.state.flags = root.Flags
+		root.state = &State{cmd: root}
 	}
 
 	// First split args at the -- delimiter if present
@@ -55,31 +49,29 @@ func Parse(root *Command, args []string) error {
 
 	// Create combined flags with all parent flags
 	combinedFlags := flag.NewFlagSet(root.Name, flag.ContinueOnError)
+	// TODO(mf): revisit this
 	combinedFlags.SetOutput(io.Discard)
 
-	// First pass: process commands and build the flag set This lets us capture help requests before
-	// any flag parsing errors
+	// First pass: process commands and build the flag set. This lets us capture help requests
+	// before any flag parsing errors
 	for _, arg := range argsToParse {
 		if arg == "-h" || arg == "--h" || arg == "-help" || arg == "--help" {
 			combinedFlags.Usage = func() { _ = current.showHelp() }
 			return current.showHelp()
 		}
-
 		// Skip anything that looks like a flag
 		if strings.HasPrefix(arg, "-") {
 			continue
 		}
-
 		// Try to traverse to subcommand
 		if len(current.SubCommands) > 0 {
 			if sub := current.findSubCommand(arg); sub != nil {
 				if sub.state == nil {
-					sub.state = &State{}
+					sub.state = &State{cmd: sub}
 				}
 				if sub.Flags == nil {
 					sub.Flags = flag.NewFlagSet(sub.Name, flag.ContinueOnError)
 				}
-				sub.state.flags = sub.Flags
 				sub.state.parent = current.state
 				current = sub
 				commandChain = append(commandChain, sub)
@@ -122,7 +114,6 @@ func Parse(root *Command, args []string) error {
 			if flag == nil {
 				return fmt.Errorf("command %q: internal error: required flag %q not found in flag set", current.Name, flagMetadata.Name)
 			}
-
 			// Look for the flag in the original args before any delimiter
 			found := false
 			for _, arg := range argsToParse {

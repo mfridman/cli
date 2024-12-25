@@ -47,8 +47,7 @@ type Command struct {
 	// is called.
 	Exec func(ctx context.Context, s *State) error
 
-	state *State
-	// TODO(mf): remove this in favor of tracking the selected *Command in the state
+	state    *State
 	selected *Command
 }
 
@@ -94,7 +93,6 @@ func (c *Command) showHelp() error {
 		return nil
 	}
 
-	// Display command description first if available, with wrapping
 	if c.ShortHelp != "" {
 		for _, line := range wrapText(c.ShortHelp, 80) {
 			fmt.Fprintf(w, "%s\n", line)
@@ -102,7 +100,6 @@ func (c *Command) showHelp() error {
 		fmt.Fprintln(w)
 	}
 
-	// Show usage pattern
 	fmt.Fprintf(w, "Usage:\n  ")
 	if c.Usage != "" {
 		fmt.Fprintf(w, "%s\n", c.Usage)
@@ -118,7 +115,6 @@ func (c *Command) showHelp() error {
 	}
 	fmt.Fprintln(w)
 
-	// Show available subcommands
 	if len(c.SubCommands) > 0 {
 		fmt.Fprintf(w, "Available Commands:\n")
 
@@ -155,7 +151,6 @@ func (c *Command) showHelp() error {
 		fmt.Fprintln(w)
 	}
 
-	// Collect and format all flags
 	type flagInfo struct {
 		name   string
 		usage  string
@@ -176,12 +171,12 @@ func (c *Command) showHelp() error {
 		})
 	}
 
-	// Global flags
-	if c.state.parent != nil {
+	// Global flags from parent commands
+	if c.state != nil && c.state.parent != nil {
 		p := c.state.parent
 		for p != nil {
-			if p.flags != nil {
-				p.flags.VisitAll(func(f *flag.Flag) {
+			if p.cmd != nil && p.cmd.Flags != nil {
+				p.cmd.Flags.VisitAll(func(f *flag.Flag) {
 					flags = append(flags, flagInfo{
 						name:   "-" + f.Name,
 						usage:  f.Usage,
@@ -195,12 +190,10 @@ func (c *Command) showHelp() error {
 	}
 
 	if len(flags) > 0 {
-		// Sort flags by name
 		slices.SortFunc(flags, func(a, b flagInfo) int {
 			return cmp.Compare(a.name, b.name)
 		})
 
-		// Find the longest flag name for alignment
 		maxLen := 0
 		for _, f := range flags {
 			if len(f.name) > maxLen {
@@ -218,7 +211,6 @@ func (c *Command) showHelp() error {
 			}
 		}
 
-		// Print local flags first
 		if hasLocal {
 			fmt.Fprintf(w, "Flags:\n")
 			for _, f := range flags {
@@ -226,20 +218,15 @@ func (c *Command) showHelp() error {
 					nameWidth := maxLen + 4
 					wrapWidth := 80 - nameWidth
 
-					// Prepare the usage text with default value if needed
 					usageText := f.usage
 					if f.defval != "" && f.defval != "false" {
 						usageText += fmt.Sprintf(" (default %s)", f.defval)
 					}
 
-					// Wrap the usage text
 					lines := wrapText(usageText, wrapWidth)
-
-					// Print first line with flag name
 					padding := strings.Repeat(" ", maxLen-len(f.name)+4)
 					fmt.Fprintf(w, "  %s%s%s\n", f.name, padding, lines[0])
 
-					// Print subsequent lines with proper padding
 					indentPadding := strings.Repeat(" ", nameWidth+2)
 					for _, line := range lines[1:] {
 						fmt.Fprintf(w, "%s%s\n", indentPadding, line)
@@ -249,7 +236,6 @@ func (c *Command) showHelp() error {
 			fmt.Fprintln(w)
 		}
 
-		// Then print global flags
 		if hasGlobal {
 			fmt.Fprintf(w, "Global Flags:\n")
 			for _, f := range flags {
@@ -257,20 +243,15 @@ func (c *Command) showHelp() error {
 					nameWidth := maxLen + 4
 					wrapWidth := 80 - nameWidth
 
-					// Prepare the usage text with default value if needed
 					usageText := f.usage
 					if f.defval != "" && f.defval != "false" {
 						usageText += fmt.Sprintf(" (default %s)", f.defval)
 					}
 
-					// Wrap the usage text
 					lines := wrapText(usageText, wrapWidth)
-
-					// Print first line with flag name
 					padding := strings.Repeat(" ", maxLen-len(f.name)+4)
 					fmt.Fprintf(w, "  %s%s%s\n", f.name, padding, lines[0])
 
-					// Print subsequent lines with proper padding
 					indentPadding := strings.Repeat(" ", nameWidth+2)
 					for _, line := range lines[1:] {
 						fmt.Fprintf(w, "%s%s\n", indentPadding, line)
@@ -281,7 +262,6 @@ func (c *Command) showHelp() error {
 		}
 	}
 
-	// Show help hint for subcommands
 	if len(c.SubCommands) > 0 {
 		fmt.Fprintf(w, "Use \"%s [command] --help\" for more information about a command.\n", c.Name)
 	}

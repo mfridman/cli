@@ -13,7 +13,10 @@ func TestGetFlag(t *testing.T) {
 
 	t.Run("flag not found", func(t *testing.T) {
 		st := &State{
-			flags: flag.NewFlagSet("root", flag.ContinueOnError),
+			cmd: &Command{
+				Name:  "root",
+				Flags: flag.NewFlagSet("root", flag.ContinueOnError),
+			},
 		}
 		// Capture the panic
 		defer func() {
@@ -27,9 +30,11 @@ func TestGetFlag(t *testing.T) {
 	})
 	t.Run("flag type mismatch", func(t *testing.T) {
 		st := &State{
-			flags: flag.NewFlagSet("root", flag.ContinueOnError),
+			cmd: &Command{
+				Name:  "root",
+				Flags: FlagsFunc(func(f *flag.FlagSet) { f.String("version", "1.0.0", "show version") }),
+			},
 		}
-		st.flags.String("version", "1.0", "version")
 		defer func() {
 			r := recover()
 			require.NotNil(t, r)
