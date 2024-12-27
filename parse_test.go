@@ -310,8 +310,7 @@ func TestParse(t *testing.T) {
 
 		err := Parse(s.root, []string{"nested", "hello"})
 		require.Error(t, err)
-		// TODO(mf): this error message should have the full path to the command, e.g., "todo nested hello"
-		require.ErrorContains(t, err, `command "hello": required flag(s) "mandatory-flag" not set`)
+		require.ErrorContains(t, err, `command "todo nested hello": required flag(s) "-mandatory-flag" not set`)
 
 		// Correct type
 		err = Parse(s.root, []string{"nested", "hello", "--mandatory-flag", "true"})
@@ -346,7 +345,6 @@ func TestParse(t *testing.T) {
 		}
 		err := Parse(cmd, nil)
 		require.Error(t, err)
-		// TODO(mf): consider improving this error message so it's a bit more user-friendly
-		require.ErrorContains(t, err, `command name "sub command" contains spaces`)
+		require.ErrorContains(t, err, `command name "sub command" contains spaces, must be a single word`)
 	})
 }

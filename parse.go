@@ -26,7 +26,10 @@ func Parse(root *Command, args []string) error {
 
 	// Initialize root state
 	if root.state == nil {
-		root.state = &State{cmd: root}
+		root.state = &State{
+			cmd:      root,
+			fullName: root.Name,
+		}
 	}
 
 	// First split args at the -- delimiter if present
@@ -49,11 +52,10 @@ func Parse(root *Command, args []string) error {
 
 	// Create combined flags with all parent flags
 	combinedFlags := flag.NewFlagSet(root.Name, flag.ContinueOnError)
-	// TODO(mf): revisit this
+	// TODO(mf): revisit this output location
 	combinedFlags.SetOutput(io.Discard)
 
-	// First pass: process commands and build the flag set. This lets us capture help requests
-	// before any flag parsing errors
+	// First pass: process commands and build the flag set
 	for _, arg := range argsToParse {
 		if arg == "-h" || arg == "--h" || arg == "-help" || arg == "--help" {
 			combinedFlags.Usage = func() { _ = current.showHelp() }
@@ -67,7 +69,10 @@ func Parse(root *Command, args []string) error {
 		if len(current.SubCommands) > 0 {
 			if sub := current.findSubCommand(arg); sub != nil {
 				if sub.state == nil {
-					sub.state = &State{cmd: sub}
+					sub.state = &State{
+						cmd:      sub,
+						fullName: current.state.fullName + " " + sub.Name,
+					}
 				}
 				if sub.Flags == nil {
 					sub.Flags = flag.NewFlagSet(sub.Name, flag.ContinueOnError)
@@ -102,7 +107,7 @@ func Parse(root *Command, args []string) error {
 		return fmt.Errorf("command %q: %w", current.Name, err)
 	}
 
-	// Check required flags by checking if they were actually set to non-default values
+	// Check required flags
 	var missingFlags []string
 	for _, cmd := range commandChain {
 		if len(cmd.FlagsMetadata) > 0 {
@@ -112,20 +117,19 @@ func Parse(root *Command, args []string) error {
 				}
 				flag := combinedFlags.Lookup(flagMetadata.Name)
 				if flag == nil {
-					return fmt.Errorf("command %q: internal error: required flag %q not found in flag set", current.Name, flagMetadata.Name)
+					return fmt.Errorf("command %q: internal error: required flag %q not found in flag set", current.state.fullName, flagMetadata.Name)
 				}
-				// Check if the flag was set by checking its actual value against default
 				if flag.Value.String() == flag.DefValue {
-					missingFlags = append(missingFlags, flagMetadata.Name)
+					missingFlags = append(missingFlags, formatFlagName(flagMetadata.Name))
 				}
 			}
 		}
 	}
 	if len(missingFlags) > 0 {
-		return fmt.Errorf("command %q: required flag(s) %q not set", current.Name, strings.Join(missingFlags, ", "))
+		return fmt.Errorf("command %q: required flag(s) %q not set", current.state.fullName, strings.Join(missingFlags, ", "))
 	}
 
-	// Skip past command names in remaining args from flag parsing
+	// Skip past command names in remaining args
 	parsed := combinedFlags.Args()
 	startIdx := 0
 	for _, arg := range parsed {
@@ -164,7 +168,7 @@ func validateCommands(root *Command, path []string) error {
 	}
 	// Ensure name has no spaces
 	if strings.Contains(root.Name, " ") {
-		return fmt.Errorf("command name %q contains spaces", root.Name)
+		return fmt.Errorf("command name %q contains spaces, must be a single word", root.Name)
 	}
 
 	// Add current command to path for nested validation

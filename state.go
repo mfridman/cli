@@ -17,7 +17,10 @@ type State struct {
 	Stdin          io.Reader
 	Stdout, Stderr io.Writer
 
-	cmd    *Command // Reference to the command this state belongs to
+	// The full name of the command, including parent commands. E.g., "cli todo list all"
+	fullName string
+	// Reference to the command this state belongs to
+	cmd    *Command
 	parent *State
 }
 
@@ -28,20 +31,19 @@ type State struct {
 //	count := GetFlag[int](state, "count")
 //	path := GetFlag[string](state, "path")
 //
-// If the flag isn't found, it panics with a detailed error message.
+// If the flag isn't known, or is the wrong type, it panics with a detailed error message.
 //
 // Why panic? Because if a flag is missing, it's likely a programming error or a missing flag
 // definition, and it's better to fail LOUD and EARLY than to silently ignore the issue and cause
 // unexpected behavior.
 func GetFlag[T any](s *State, name string) T {
-	// TODO(mf): we should have a way to get the selected command here to improve error messages
 	if f := s.cmd.Flags.Lookup(name); f != nil {
 		if getter, ok := f.Value.(flag.Getter); ok {
 			value := getter.Get()
 			if v, ok := value.(T); ok {
 				return v
 			}
-			msg := fmt.Sprintf("internal error: type mismatch for flag %q: registered %T, requested %T", name, value, *new(T))
+			msg := fmt.Sprintf("internal error: type mismatch for flag %q in command %q: registered %T, requested %T", formatFlagName(name), s.fullName, value, *new(T))
 			// Flag exists but type doesn't match - this is an internal error
 			panic(msg)
 		}
@@ -51,6 +53,10 @@ func GetFlag[T any](s *State, name string) T {
 		return GetFlag[T](s.parent, name)
 	}
 	// If flag not found anywhere in hierarchy, panic with helpful message
-	msg := fmt.Sprintf("internal error: flag not found: %q in %s flag set", name, s.cmd.Name)
+	msg := fmt.Sprintf("internal error: flag %q not found in %q flag set", formatFlagName(name), s.fullName)
 	panic(msg)
+}
+
+func formatFlagName(name string) string {
+	return "-" + name
 }
