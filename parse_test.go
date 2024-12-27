@@ -13,14 +13,15 @@ import (
 
 // testState is a helper struct to hold the commands for testing
 //
-//	 root --verbose --version
-//	 ├── add --dry-run
-//	 └── nested --force
-//		└── sub --echo
+//		 root --verbose --version
+//		 ├── add --dry-run
+//		 └── nested --force
+//			└── sub --echo
+//	     └── hello --mandatory-flag
 type testState struct {
-	add         *Command
-	nested, sub *Command
-	root        *Command
+	add                *Command
+	nested, sub, hello *Command
+	root               *Command
 }
 
 func newTestState() testState {
@@ -37,6 +38,19 @@ func newTestState() testState {
 		Flags: FlagsFunc(func(fset *flag.FlagSet) {
 			fset.String("echo", "", "echo the message")
 		}),
+		FlagsMetadata: []FlagMetadata{
+			{Name: "echo", Required: false}, // not required
+		},
+		Exec: exec,
+	}
+	hello := &Command{
+		Name: "hello",
+		Flags: FlagsFunc(func(fset *flag.FlagSet) {
+			fset.Bool("mandatory-flag", false, "mandatory flag")
+		}),
+		FlagsMetadata: []FlagMetadata{
+			{Name: "mandatory-flag", Required: true},
+		},
 		Exec: exec,
 	}
 	nested := &Command{
@@ -44,7 +58,7 @@ func newTestState() testState {
 		Flags: FlagsFunc(func(fset *flag.FlagSet) {
 			fset.Bool("force", false, "force the operation")
 		}),
-		SubCommands: []*Command{sub},
+		SubCommands: []*Command{sub, hello},
 		Exec:        exec,
 	}
 	root := &Command{
@@ -289,5 +303,50 @@ func TestParse(t *testing.T) {
 		err := Parse(s.root, nil)
 		require.Error(t, err)
 		require.ErrorContains(t, err, `subcommand in path "todo nested" has no name`)
+	})
+	t.Run("required flag not set", func(t *testing.T) {
+		t.Parallel()
+		s := newTestState()
+
+		err := Parse(s.root, []string{"nested", "hello"})
+		require.Error(t, err)
+		// TODO(mf): this error message should have the full path to the command, e.g., "todo nested hello"
+		require.ErrorContains(t, err, `command "hello": required flag(s) "mandatory-flag" not set`)
+
+		// Correct type
+		err = Parse(s.root, []string{"nested", "hello", "--mandatory-flag", "true"})
+		require.NoError(t, err)
+		require.True(t, GetFlag[bool](s.root.selected.state, "mandatory-flag"))
+		// Incorrect type
+		err = Parse(s.root, []string{"nested", "hello", "--mandatory-flag=not-a-bool"})
+		require.Error(t, err)
+		require.ErrorContains(t, err, `command "hello": invalid boolean value "not-a-bool" for -mandatory-flag: parse error`)
+	})
+	t.Run("unknown required flag set by cli author", func(t *testing.T) {
+		t.Parallel()
+		cmd := &Command{
+			Name: "root",
+			FlagsMetadata: []FlagMetadata{
+				{Name: "some-other-flag", Required: true},
+			},
+		}
+		err := Parse(cmd, nil)
+		require.Error(t, err)
+		// TODO(mf): consider improving this error message so it's obvious that a "required" flag
+		// was set by the cli author but not registered in the flag set
+		require.ErrorContains(t, err, `command "root": internal error: required flag "some-other-flag" not found in flag set`)
+	})
+	t.Run("space in command name", func(t *testing.T) {
+		t.Parallel()
+		cmd := &Command{
+			Name: "root",
+			SubCommands: []*Command{
+				{Name: "sub command"},
+			},
+		}
+		err := Parse(cmd, nil)
+		require.Error(t, err)
+		// TODO(mf): consider improving this error message so it's a bit more user-friendly
+		require.ErrorContains(t, err, `command name "sub command" contains spaces`)
 	})
 }

@@ -102,36 +102,27 @@ func Parse(root *Command, args []string) error {
 		return fmt.Errorf("command %q: %w", current.Name, err)
 	}
 
-	// Check required flags by inspecting the args string for their presence
-	if len(current.FlagsMetadata) > 0 {
-		var missingFlags []string
-		for _, flagMetadata := range current.FlagsMetadata {
-			if !flagMetadata.Required {
-				continue
-			}
-			// TODO(mf): we need to validate that the metadata flag is known to the flag set
-			flag := combinedFlags.Lookup(flagMetadata.Name)
-			if flag == nil {
-				return fmt.Errorf("command %q: internal error: required flag %q not found in flag set", current.Name, flagMetadata.Name)
-			}
-			// Look for the flag in the original args before any delimiter
-			found := false
-			for _, arg := range argsToParse {
-				// Match either -flag or --flag
-				if arg == "-"+flagMetadata.Name || arg == "--"+flagMetadata.Name ||
-					strings.HasPrefix(arg, "-"+flagMetadata.Name+"=") ||
-					strings.HasPrefix(arg, "--"+flagMetadata.Name+"=") {
-					found = true
-					break
+	// Check required flags by checking if they were actually set to non-default values
+	var missingFlags []string
+	for _, cmd := range commandChain {
+		if len(cmd.FlagsMetadata) > 0 {
+			for _, flagMetadata := range cmd.FlagsMetadata {
+				if !flagMetadata.Required {
+					continue
+				}
+				flag := combinedFlags.Lookup(flagMetadata.Name)
+				if flag == nil {
+					return fmt.Errorf("command %q: internal error: required flag %q not found in flag set", current.Name, flagMetadata.Name)
+				}
+				// Check if the flag was set by checking its actual value against default
+				if flag.Value.String() == flag.DefValue {
+					missingFlags = append(missingFlags, flagMetadata.Name)
 				}
 			}
-			if !found {
-				missingFlags = append(missingFlags, flagMetadata.Name)
-			}
 		}
-		if len(missingFlags) > 0 {
-			return fmt.Errorf("command %q: required flag(s) %q not set", current.Name, strings.Join(missingFlags, ", "))
-		}
+	}
+	if len(missingFlags) > 0 {
+		return fmt.Errorf("command %q: required flag(s) %q not set", current.Name, strings.Join(missingFlags, ", "))
 	}
 
 	// Skip past command names in remaining args from flag parsing
