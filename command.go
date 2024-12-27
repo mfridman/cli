@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 )
 
@@ -291,13 +292,9 @@ func (c *Command) getSuggestions(unknownCmd string) []string {
 		}
 	}
 	// Sort suggestions by score (highest first)
-	for i := 0; i < len(suggestions)-1; i++ {
-		for j := i + 1; j < len(suggestions); j++ {
-			if suggestions[j].score > suggestions[i].score {
-				suggestions[i], suggestions[j] = suggestions[j], suggestions[i]
-			}
-		}
-	}
+	sort.Slice(suggestions, func(i, j int) bool {
+		return suggestions[i].score > suggestions[j].score
+	})
 	// Get top 3 suggestions
 	maxSuggestions := 3
 	result := make([]string, 0, maxSuggestions)
