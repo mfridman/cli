@@ -1,6 +1,6 @@
 # cli
 
-[![GoDoc](https://godoc.org/github.com/mfridman/cli?status.svg)](https://godoc.org/github.com/mfridman/cli)
+[![GoDoc](https://godoc.org/github.com/mfridman/cli?status.svg)](https://pkg.go.dev/github.com/mfridman/cli#section-documentation)
 [![CI](https://github.com/mfridman/cli/actions/workflows/ci.yaml/badge.svg)](https://github.com/mfridman/cli/actions/workflows/ci.yaml)
 
 A Go framework for building CLI applications with flexible flag placement. Extends the standard
