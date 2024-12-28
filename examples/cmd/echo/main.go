@@ -25,8 +25,7 @@ func main() {
 		},
 		Exec: func(ctx context.Context, s *cli.State) error {
 			if len(s.Args) == 0 {
-				// Return a new error with the error code ErrShowHelp
-				return fmt.Errorf("no text provided")
+				return errors.New("must provide text to echo, see --help")
 			}
 			output := strings.Join(s.Args, " ")
 			// If -c flag is set, capitalize the output

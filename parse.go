@@ -81,8 +81,10 @@ func Parse(root *Command, args []string) error {
 	// Add the help check here, after we've found the correct command
 	for _, arg := range argsToParse {
 		if arg == "-h" || arg == "--h" || arg == "-help" || arg == "--help" {
-			combinedFlags.Usage = func() { _ = current.showHelp() }
-			_ = current.showHelp()
+			current.Flags.Usage = func() {
+				fmt.Fprintln(current.Flags.Output(), defaultUsage(current))
+			}
+			current.Flags.Usage()
 			return flag.ErrHelp
 		}
 	}
