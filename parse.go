@@ -4,7 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
+	"slices"
 	"strings"
 
 	"github.com/mfridman/xflag"
@@ -24,14 +24,15 @@ func Parse(root *Command, args []string) error {
 		return fmt.Errorf("failed to parse: %w", err)
 	}
 
-	// Initialize root state
+	// Initialize or update root state
 	if root.state == nil {
 		root.state = &State{
-			cmd:      root,
-			fullName: root.Name,
+			commandPath: []*Command{root},
 		}
+	} else {
+		// Reset command path but preserve other state
+		root.state.commandPath = []*Command{root}
 	}
-
 	// First split args at the -- delimiter if present
 	var argsToParse []string
 	var remainingArgs []string
@@ -52,15 +53,9 @@ func Parse(root *Command, args []string) error {
 
 	// Create combined flags with all parent flags
 	combinedFlags := flag.NewFlagSet(root.Name, flag.ContinueOnError)
-	// TODO(mf): revisit this output location
-	combinedFlags.SetOutput(io.Discard)
 
 	// First pass: process commands and build the flag set
 	for _, arg := range argsToParse {
-		if arg == "-h" || arg == "--h" || arg == "-help" || arg == "--help" {
-			combinedFlags.Usage = func() { _ = current.showHelp() }
-			return current.showHelp()
-		}
 		// Skip anything that looks like a flag
 		if strings.HasPrefix(arg, "-") {
 			continue
@@ -68,16 +63,12 @@ func Parse(root *Command, args []string) error {
 		// Try to traverse to subcommand
 		if len(current.SubCommands) > 0 {
 			if sub := current.findSubCommand(arg); sub != nil {
-				if sub.state == nil {
-					sub.state = &State{
-						cmd:      sub,
-						fullName: current.state.fullName + " " + sub.Name,
-					}
-				}
+				// Update root state's command path
+				root.state.commandPath = append(slices.Clone(root.state.commandPath), sub)
+
 				if sub.Flags == nil {
 					sub.Flags = flag.NewFlagSet(sub.Name, flag.ContinueOnError)
 				}
-				sub.state.parent = current.state
 				current = sub
 				commandChain = append(commandChain, sub)
 				continue
@@ -87,8 +78,14 @@ func Parse(root *Command, args []string) error {
 		break
 	}
 
-	// Store selected command
-	root.selected = current
+	// Add the help check here, after we've found the correct command
+	for _, arg := range argsToParse {
+		if arg == "-h" || arg == "--h" || arg == "-help" || arg == "--help" {
+			combinedFlags.Usage = func() { _ = current.showHelp() }
+			_ = current.showHelp()
+			return flag.ErrHelp
+		}
+	}
 
 	// Add flags in reverse order for proper precedence
 	for i := len(commandChain) - 1; i >= 0; i-- {
@@ -117,7 +114,7 @@ func Parse(root *Command, args []string) error {
 				}
 				flag := combinedFlags.Lookup(flagMetadata.Name)
 				if flag == nil {
-					return fmt.Errorf("command %q: internal error: required flag %q not found in flag set", current.state.fullName, flagMetadata.Name)
+					return fmt.Errorf("command %q: internal error: required flag %s not found in flag set", getCommandPath(root.state.commandPath), formatFlagName(flagMetadata.Name))
 				}
 				if flag.Value.String() == flag.DefValue {
 					missingFlags = append(missingFlags, formatFlagName(flagMetadata.Name))
@@ -126,7 +123,11 @@ func Parse(root *Command, args []string) error {
 		}
 	}
 	if len(missingFlags) > 0 {
-		return fmt.Errorf("command %q: required flag(s) %q not set", current.state.fullName, strings.Join(missingFlags, ", "))
+		msg := "required flag"
+		if len(missingFlags) > 1 {
+			msg += "s"
+		}
+		return fmt.Errorf("command %q: %s %q not set", getCommandPath(root.state.commandPath), msg, strings.Join(missingFlags, ", "))
 	}
 
 	// Skip past command names in remaining args
@@ -154,8 +155,13 @@ func Parse(root *Command, args []string) error {
 	if len(remainingArgs) > 0 {
 		finalArgs = append(finalArgs, remainingArgs...)
 	}
-	current.state.Args = finalArgs
+	root.state.Args = finalArgs
 
+	if current.Exec == nil {
+		return &NoExecError{
+			Command: root, // Pass the root command which has the state with the full path
+		}
+	}
 	return nil
 }
 

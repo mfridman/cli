@@ -33,10 +33,9 @@ func TestRun(t *testing.T) {
 				},
 			},
 			Exec: func(ctx context.Context, s *State) error {
-				if GetFlag[bool](s, "dry-run") {
-					return nil
+				if !GetFlag[bool](s, "dry-run") {
+					count++
 				}
-				count++
 				return nil
 			},
 		}

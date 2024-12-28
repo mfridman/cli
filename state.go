@@ -17,11 +17,7 @@ type State struct {
 	Stdin          io.Reader
 	Stdout, Stderr io.Writer
 
-	// The full name of the command, including parent commands. E.g., "cli todo list all"
-	fullName string
-	// Reference to the command this state belongs to
-	cmd    *Command
-	parent *State
+	commandPath []*Command
 }
 
 // GetFlag retrieves a flag value by name, with type inference. It traverses up the state hierarchy
@@ -37,26 +33,35 @@ type State struct {
 // definition, and it's better to fail LOUD and EARLY than to silently ignore the issue and cause
 // unexpected behavior.
 func GetFlag[T any](s *State, name string) T {
-	if f := s.cmd.Flags.Lookup(name); f != nil {
-		if getter, ok := f.Value.(flag.Getter); ok {
-			value := getter.Get()
-			if v, ok := value.(T); ok {
-				return v
+	// Try to find the flag in each command's flag set, starting from the current command
+	for i := len(s.commandPath) - 1; i >= 0; i-- {
+		cmd := s.commandPath[i]
+		if cmd.Flags == nil {
+			continue
+		}
+
+		if f := cmd.Flags.Lookup(name); f != nil {
+			if getter, ok := f.Value.(flag.Getter); ok {
+				value := getter.Get()
+				if v, ok := value.(T); ok {
+					return v
+				}
+				msg := fmt.Sprintf("internal error: type mismatch for flag %q in command %q: registered %T, requested %T",
+					formatFlagName(name),
+					getCommandPath(s.commandPath),
+					value,
+					*new(T),
+				)
+				// Flag exists but type doesn't match - this is an internal error
+				panic(msg)
 			}
-			msg := fmt.Sprintf("internal error: type mismatch for flag %q in command %q: registered %T, requested %T", formatFlagName(name), s.fullName, value, *new(T))
-			// Flag exists but type doesn't match - this is an internal error
-			panic(msg)
 		}
 	}
-	// If not found and we have a parent, try parent's flags
-	if s.parent != nil {
-		return GetFlag[T](s.parent, name)
-	}
-	// If flag not found anywhere in hierarchy, panic with helpful message
-	msg := fmt.Sprintf("internal error: flag %q not found in %q flag set", formatFlagName(name), s.fullName)
-	panic(msg)
-}
 
-func formatFlagName(name string) string {
-	return "-" + name
+	// If flag not found anywhere in hierarchy, panic with helpful message
+	msg := fmt.Sprintf("internal error: flag %q not found in %q flag set",
+		formatFlagName(name),
+		getCommandPath(s.commandPath),
+	)
+	panic(msg)
 }

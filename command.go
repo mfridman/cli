@@ -5,10 +5,20 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os"
 	"slices"
 	"sort"
 	"strings"
 )
+
+// NoExecError is returned when a command has no execution function.
+type NoExecError struct {
+	Command *Command
+}
+
+func (e *NoExecError) Error() string {
+	return fmt.Sprintf("command %q has no execution function", getCommandPath(e.Command.state.commandPath))
+}
 
 // Command represents a CLI command or subcommand within the application's command hierarchy.
 type Command struct {
@@ -48,8 +58,17 @@ type Command struct {
 	// is called.
 	Exec func(ctx context.Context, s *State) error
 
-	state    *State
-	selected *Command
+	state *State
+}
+
+func (c *Command) terminal() (*Command, *State) {
+	if c.state == nil || len(c.state.commandPath) == 0 {
+		return c, c.state
+	}
+
+	// Get the last command in the path - this is our terminal command
+	terminalCmd := c.state.commandPath[len(c.state.commandPath)-1]
+	return terminalCmd, c.state
 }
 
 // FlagMetadata holds additional metadata for a flag, such as whether it is required.
@@ -88,10 +107,13 @@ func (c *Command) findSubCommand(name string) *Command {
 
 func (c *Command) showHelp() error {
 	w := c.Flags.Output()
+	if w == nil {
+		w = os.Stdout // Fallback to stdout if no output is set
+	}
 
 	if c.UsageFunc != nil {
 		fmt.Fprintf(w, "%s\n", c.UsageFunc(c))
-		return nil
+		return flag.ErrHelp
 	}
 
 	if c.ShortHelp != "" {
@@ -105,7 +127,11 @@ func (c *Command) showHelp() error {
 	if c.Usage != "" {
 		fmt.Fprintf(w, "%s\n", c.Usage)
 	} else {
+		// Add nil check for state
 		usage := c.Name
+		if c.state != nil && len(c.state.commandPath) > 0 {
+			usage = getCommandPath(c.state.commandPath)
+		}
 		if c.Flags != nil {
 			usage += " [flags]"
 		}
@@ -114,7 +140,6 @@ func (c *Command) showHelp() error {
 		}
 		fmt.Fprintf(w, "%s\n", usage)
 	}
-	fmt.Fprintln(w)
 
 	if len(c.SubCommands) > 0 {
 		fmt.Fprintf(w, "Available Commands:\n")
@@ -160,33 +185,21 @@ func (c *Command) showHelp() error {
 	}
 	var flags []flagInfo
 
-	// Local flags
-	if c.Flags != nil {
-		c.Flags.VisitAll(func(f *flag.Flag) {
-			flags = append(flags, flagInfo{
-				name:   "-" + f.Name,
-				usage:  f.Usage,
-				defval: f.DefValue,
-				global: false,
-			})
-		})
-	}
-
-	// Global flags from parent commands
-	if c.state != nil && c.state.parent != nil {
-		p := c.state.parent
-		for p != nil {
-			if p.cmd != nil && p.cmd.Flags != nil {
-				p.cmd.Flags.VisitAll(func(f *flag.Flag) {
-					flags = append(flags, flagInfo{
-						name:   "-" + f.Name,
-						usage:  f.Usage,
-						defval: f.DefValue,
-						global: true,
-					})
-				})
+	// Use command path to collect all flags
+	if c.state != nil && len(c.state.commandPath) > 0 {
+		for i, cmd := range c.state.commandPath {
+			if cmd.Flags == nil {
+				continue
 			}
-			p = p.parent
+			isGlobal := i < len(c.state.commandPath)-1 // If not the current command, it's global
+			cmd.Flags.VisitAll(func(f *flag.Flag) {
+				flags = append(flags, flagInfo{
+					name:   "-" + f.Name,
+					usage:  f.Usage,
+					defval: f.DefValue,
+					global: isGlobal,
+				})
+			})
 		}
 	}
 
@@ -264,7 +277,9 @@ func (c *Command) showHelp() error {
 	}
 
 	if len(c.SubCommands) > 0 {
-		fmt.Fprintf(w, "Use \"%s [command] --help\" for more information about a command.\n", c.Name)
+		// Use the full command path for the help suggestion
+		fmt.Fprintf(w, "Use \"%s [command] --help\" for more information about a command.\n",
+			getCommandPath(c.state.commandPath))
 	}
 
 	return flag.ErrHelp
@@ -402,4 +417,16 @@ func wrapText(text string, width int) []string {
 		lines = append(lines, strings.Join(currentLine, " "))
 	}
 	return lines
+}
+
+func formatFlagName(name string) string {
+	return "-" + name
+}
+
+func getCommandPath(commands []*Command) string {
+	var commandPath []string
+	for _, c := range commands {
+		commandPath = append(commandPath, c.Name)
+	}
+	return strings.Join(commandPath, " ")
 }

@@ -3,19 +3,13 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 )
 
 // ParseAndRun parses the command hierarchy and runs the command. A convenience function that
 // combines [Parse] and [Run] into a single call. See [Parse] and [Run] for more details.
-func ParseAndRun(
-	ctx context.Context,
-	root *Command,
-	args []string,
-	options *RunOptions,
-) error {
+func ParseAndRun(ctx context.Context, root *Command, args []string, options *RunOptions) error {
 	if err := Parse(root, args); err != nil {
 		return err
 	}
@@ -37,29 +31,17 @@ type RunOptions struct {
 // The options parameter may be nil, in which case default values are used. See [RunOptions] for
 // more details.
 func Run(ctx context.Context, root *Command, options *RunOptions) error {
-	if root.selected == nil {
+	if root == nil {
+		return errors.New("root command is nil")
+	}
+	if root.state == nil || len(root.state.commandPath) == 0 {
 		return errors.New("command has not been parsed")
 	}
 	options = checkAndSetRunOptions(options)
-	updateState(root.selected.state, options)
+	updateState(root.state, options)
 
-	// If it is the root command, and it has no execution function, return an error and print help
-	if root.selected == root && root.selected.Exec == nil {
-		return root.selected.showHelp()
-	}
-	if root.selected.Exec == nil {
-		return fmt.Errorf("command %q has no execution function", root.selected.Name)
-	}
-
-	if err := root.selected.Exec(ctx, root.selected.state); err != nil {
-		// TODO(mf): revisit this error handling, not even sure if it's necessary
-		if cliErr := (*Error)(nil); errors.As(err, &cliErr) {
-			_ = root.selected.showHelp()
-			return err
-		}
-		return err
-	}
-	return nil
+	terminal, state := root.terminal()
+	return terminal.Exec(ctx, state)
 }
 
 func updateState(s *State, opt *RunOptions) {
