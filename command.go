@@ -6,8 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
+
+	"github.com/mfridman/cli/pkg/suggest"
 )
 
 // NoExecError is returned when a command has no execution function.
@@ -101,43 +102,12 @@ func (c *Command) findSubCommand(name string) *Command {
 	return nil
 }
 
-func (c *Command) getSuggestions(unknownCmd string) []string {
-	var availableCommands []string
-	for _, subcmd := range c.SubCommands {
-		availableCommands = append(availableCommands, subcmd.Name)
-	}
-
-	suggestions := make([]struct {
-		name  string
-		score float64
-	}, 0, len(availableCommands))
-
-	// Calculate similarity scores
-	for _, name := range availableCommands {
-		score := calculateSimilarity(unknownCmd, name)
-		if score > 0.5 { // Only include reasonably similar commands
-			suggestions = append(suggestions, struct {
-				name  string
-				score float64
-			}{name, score})
-		}
-	}
-	// Sort suggestions by score (highest first)
-	sort.Slice(suggestions, func(i, j int) bool {
-		return suggestions[i].score > suggestions[j].score
-	})
-	// Get top 3 suggestions
-	maxSuggestions := 3
-	result := make([]string, 0, maxSuggestions)
-	for i := 0; i < len(suggestions) && i < maxSuggestions; i++ {
-		result = append(result, suggestions[i].name)
-	}
-
-	return result
-}
-
 func (c *Command) formatUnknownCommandError(unknownCmd string) error {
-	suggestions := c.getSuggestions(unknownCmd)
+	var known []string
+	for _, sub := range c.SubCommands {
+		known = append(known, sub.Name)
+	}
+	suggestions := suggest.FindSimilar(unknownCmd, known, 3)
 	if len(suggestions) > 0 {
 		return fmt.Errorf("unknown command %q. Did you mean one of these?\n\t%s",
 			unknownCmd,
@@ -312,64 +282,6 @@ type flagInfo struct {
 	usage  string
 	defval string
 	global bool
-}
-
-func calculateSimilarity(a, b string) float64 {
-	a = strings.ToLower(a)
-	b = strings.ToLower(b)
-
-	// Perfect match
-	if a == b {
-		return 1.0
-	}
-	// Prefix match bonus
-	if strings.HasPrefix(b, a) {
-		return 0.9
-	}
-	// Calculate Levenshtein distance
-	distance := levenshteinDistance(a, b)
-	maxLen := float64(max(len(a), len(b)))
-
-	// Convert distance to similarity score (0 to 1)
-	similarity := 1.0 - float64(distance)/maxLen
-
-	return similarity
-}
-
-func levenshteinDistance(a, b string) int {
-	if len(a) == 0 {
-		return len(b)
-	}
-	if len(b) == 0 {
-		return len(a)
-	}
-
-	matrix := make([][]int, len(a)+1)
-	for i := range matrix {
-		matrix[i] = make([]int, len(b)+1)
-	}
-
-	for i := 0; i <= len(a); i++ {
-		matrix[i][0] = i
-	}
-	for j := 0; j <= len(b); j++ {
-		matrix[0][j] = j
-	}
-
-	for i := 1; i <= len(a); i++ {
-		for j := 1; j <= len(b); j++ {
-			cost := 1
-			if a[i-1] == b[j-1] {
-				cost = 0
-			}
-			matrix[i][j] = min(
-				matrix[i-1][j]+1, // deletion
-				min(matrix[i][j-1]+1, // insertion
-					matrix[i-1][j-1]+cost)) // substitution
-		}
-	}
-
-	return matrix[len(a)][len(b)]
 }
 
 func wrapText(text string, width int) []string {
