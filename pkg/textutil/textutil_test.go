@@ -1,4 +1,4 @@
-package cli
+package textutil
 
 import (
 	"testing"
@@ -53,7 +53,7 @@ func TestWrapText(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := wrapText(tt.text, tt.width)
+			result := Wrap(tt.text, tt.width)
 			assert.EqualValues(t, tt.expected, result, "wrapped text mismatch for input %q with width %d", tt.text, tt.width)
 		})
 	}

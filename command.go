@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mfridman/cli/pkg/suggest"
+	"github.com/mfridman/cli/pkg/textutil"
 )
 
 // NoExecError is returned when a command has no execution function.
@@ -126,7 +127,7 @@ func defaultUsage(c *Command) string {
 
 	// Short help section
 	if c.ShortHelp != "" {
-		for _, line := range wrapText(c.ShortHelp, 80) {
+		for _, line := range textutil.Wrap(c.ShortHelp, 80) {
 			b.WriteString(line)
 			b.WriteRune('\n')
 		}
@@ -178,7 +179,7 @@ func defaultUsage(c *Command) string {
 			nameWidth := maxLen + 4
 			wrapWidth := 80 - nameWidth
 
-			lines := wrapText(sub.ShortHelp, wrapWidth)
+			lines := textutil.Wrap(sub.ShortHelp, wrapWidth)
 			padding := strings.Repeat(" ", maxLen-len(sub.Name)+4)
 			fmt.Fprintf(&b, "  %s%s%s\n", sub.Name, padding, lines[0])
 
@@ -265,7 +266,7 @@ func writeFlagSection(b *strings.Builder, flags []flagInfo, maxLen int, global b
 				usageText += fmt.Sprintf(" (default %s)", f.defval)
 			}
 
-			lines := wrapText(usageText, wrapWidth)
+			lines := textutil.Wrap(usageText, wrapWidth)
 			padding := strings.Repeat(" ", maxLen-len(f.name)+4)
 			fmt.Fprintf(b, "  %s%s%s\n", f.name, padding, lines[0])
 
@@ -282,37 +283,6 @@ type flagInfo struct {
 	usage  string
 	defval string
 	global bool
-}
-
-func wrapText(text string, width int) []string {
-	words := strings.Fields(text)
-	var (
-		lines         []string
-		currentLine   []string
-		currentLength int
-	)
-	for _, word := range words {
-		if currentLength+len(word)+1 > width {
-			if len(currentLine) > 0 {
-				lines = append(lines, strings.Join(currentLine, " "))
-				currentLine = []string{word}
-				currentLength = len(word)
-			} else {
-				lines = append(lines, word)
-			}
-		} else {
-			currentLine = append(currentLine, word)
-			if currentLength == 0 {
-				currentLength = len(word)
-			} else {
-				currentLength += len(word) + 1
-			}
-		}
-	}
-	if len(currentLine) > 0 {
-		lines = append(lines, strings.Join(currentLine, " "))
-	}
-	return lines
 }
 
 func formatFlagName(name string) string {
