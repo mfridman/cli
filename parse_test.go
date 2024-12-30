@@ -17,7 +17,7 @@ import (
 //		 ├── add --dry-run
 //		 └── nested --force
 //			└── sub --echo
-//	     └── hello --mandatory-flag
+//	     └── hello --mandatory-flag=false --another-mandatory-flag some-value
 type testState struct {
 	add                *Command
 	nested, sub, hello *Command
@@ -47,9 +47,11 @@ func newTestState() testState {
 		Name: "hello",
 		Flags: FlagsFunc(func(fset *flag.FlagSet) {
 			fset.Bool("mandatory-flag", false, "mandatory flag")
+			fset.String("another-mandatory-flag", "", "another mandatory flag")
 		}),
 		FlagsMetadata: []FlagMetadata{
 			{Name: "mandatory-flag", Required: true},
+			{Name: "another-mandatory-flag", Required: true},
 		},
 		Exec: exec,
 	}
@@ -308,22 +310,31 @@ func TestParse(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, `subcommand in path "todo nested" has no name`)
 	})
-	t.Run("required flag not set", func(t *testing.T) {
+	t.Run("required flag", func(t *testing.T) {
 		t.Parallel()
 		{
 			s := newTestState()
 			err := Parse(s.root, []string{"nested", "hello"})
 			require.Error(t, err)
-			require.ErrorContains(t, err, `command "todo nested hello": required flag "-mandatory-flag" not set`)
+			require.ErrorContains(t, err, `command "todo nested hello": required flags "-mandatory-flag, -another-mandatory-flag" not set`)
 		}
 		{
-			// Correct type
+			// Correct type - true
 			s := newTestState()
-			err := Parse(s.root, []string{"nested", "hello", "--mandatory-flag", "true"})
+			err := Parse(s.root, []string{"nested", "hello", "--mandatory-flag=true", "--another-mandatory-flag", "some-value"})
 			require.NoError(t, err)
 			cmd, state := s.root.terminal()
 			assert.Equal(t, s.hello, cmd)
 			require.True(t, GetFlag[bool](state, "mandatory-flag"))
+		}
+		{
+			// Correct type - false
+			s := newTestState()
+			err := Parse(s.root, []string{"nested", "hello", "--mandatory-flag=false", "--another-mandatory-flag=some-value"})
+			require.NoError(t, err)
+			cmd, state := s.root.terminal()
+			assert.Equal(t, s.hello, cmd)
+			require.False(t, GetFlag[bool](state, "mandatory-flag"))
 		}
 		{
 			// Incorrect type
