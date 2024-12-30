@@ -4,7 +4,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/mfridman/xflag"
@@ -178,22 +180,32 @@ func Parse(root *Command, args []string) error {
 	return nil
 }
 
+var validNameRegex = regexp.MustCompile(`^[a-zA-Z]+$`)
+
+func validateName(root *Command) error {
+	if !validNameRegex.MatchString(root.Name) {
+		return fmt.Errorf("must contain only letters, no spaces or special characters")
+	}
+	return nil
+}
+
 func validateCommands(root *Command, path []string) error {
 	if root.Name == "" {
 		if len(path) == 0 {
 			return errors.New("root command has no name")
 		}
-		return fmt.Errorf("subcommand in path %q has no name", strings.Join(path, " "))
-	}
-	// Ensure name has no spaces
-	if strings.Contains(root.Name, " ") {
-		return fmt.Errorf("command name %q contains spaces, must be a single word", root.Name)
+		return fmt.Errorf("subcommand in path [%s] has no name", strings.Join(path, ", "))
 	}
 
-	// Add current command to path for nested validation
 	currentPath := append(path, root.Name)
+	if err := validateName(root); err != nil {
+		quoted := make([]string, len(currentPath))
+		for i, p := range currentPath {
+			quoted[i] = strconv.Quote(p)
+		}
+		return fmt.Errorf("command [%s]: %w", strings.Join(quoted, ", "), err)
+	}
 
-	// Recursively validate all subcommands
 	for _, sub := range root.SubCommands {
 		if err := validateCommands(sub, currentPath); err != nil {
 			return err

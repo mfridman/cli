@@ -308,7 +308,7 @@ func TestParse(t *testing.T) {
 
 		err := Parse(s.root, nil)
 		require.Error(t, err)
-		require.ErrorContains(t, err, `subcommand in path "todo nested" has no name`)
+		require.ErrorContains(t, err, `subcommand in path [todo, nested] has no name`)
 	})
 	t.Run("required flag", func(t *testing.T) {
 		t.Parallel()
@@ -368,6 +368,6 @@ func TestParse(t *testing.T) {
 		}
 		err := Parse(cmd, nil)
 		require.Error(t, err)
-		require.ErrorContains(t, err, `command name "sub command" contains spaces, must be a single word`)
+		require.ErrorContains(t, err, `failed to parse: command ["root", "sub command"]: must contain only letters, no spaces or special characters`)
 	})
 }
