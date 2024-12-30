@@ -14,7 +14,7 @@ import (
 func main() {
 	root := &cli.Command{
 		Name:      "echo",
-		Usage:     "echo <text...> [flags]",
+		Usage:     "echo [flags] <text>...",
 		ShortHelp: "echo is a simple command that prints the provided text",
 		Flags: cli.FlagsFunc(func(f *flag.FlagSet) {
 			// Add a flag to capitalize the input
@@ -36,8 +36,7 @@ func main() {
 			return nil
 		},
 	}
-	err := cli.ParseAndRun(context.Background(), root, os.Args[1:], nil)
-	if err != nil {
+	if err := cli.ParseAndRun(context.Background(), root, os.Args[1:], nil); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return
 		}

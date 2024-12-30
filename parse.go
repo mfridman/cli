@@ -118,7 +118,18 @@ func Parse(root *Command, args []string) error {
 				if flag == nil {
 					return fmt.Errorf("command %q: internal error: required flag %s not found in flag set", getCommandPath(root.state.commandPath), formatFlagName(flagMetadata.Name))
 				}
-				if flag.Value.String() == flag.DefValue {
+				if _, isBool := flag.Value.(interface{ IsBoolFlag() bool }); isBool {
+					isSet := false
+					for _, arg := range argsToParse {
+						if strings.HasPrefix(arg, "-"+flagMetadata.Name) || strings.HasPrefix(arg, "--"+flagMetadata.Name) {
+							isSet = true
+							break
+						}
+					}
+					if !isSet {
+						missingFlags = append(missingFlags, formatFlagName(flagMetadata.Name))
+					}
+				} else if flag.Value.String() == flag.DefValue {
 					missingFlags = append(missingFlags, formatFlagName(flagMetadata.Name))
 				}
 			}

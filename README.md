@@ -3,11 +3,14 @@
 [![GoDoc](https://godoc.org/github.com/mfridman/cli?status.svg)](https://pkg.go.dev/github.com/mfridman/cli#section-documentation)
 [![CI](https://github.com/mfridman/cli/actions/workflows/ci.yaml/badge.svg)](https://github.com/mfridman/cli/actions/workflows/ci.yaml)
 
-A Go framework for building CLI applications with flexible flag placement. Extends the standard
-library's `flag` package to support [flags
-anywhere](https://mfridman.com/blog/2024/allowing-flags-anywhere-on-the-cli/) in command arguments.
+A Go framework for building CLI applications. Extends the standard library's `flag` package to
+support [flags anywhere](https://mfridman.com/blog/2024/allowing-flags-anywhere-on-the-cli/) in
+command arguments.
 
 ## Features
+
+The **bare minimum** to build a CLI application while leveraging the standard library's `flag`
+package.
 
 - Nested subcommands for organizing complex CLIs
 - Flexible flag parsing, allowing flags anywhere
@@ -16,13 +19,11 @@ anywhere](https://mfridman.com/blog/2024/allowing-flags-anywhere-on-the-cli/) in
 - Automatic generation of help text and usage information
 - Suggestions for misspelled or incomplete commands
 
-And that's it! It's the **bare minimum to build a CLI application** while leveraging the standard
-library's `flag` package.
-
 ### But why?
 
-This framework embraces minimalism while maintaining functionality. It provides essential building
-blocks for CLI applications without the bloat, allowing you to:
+This framework is intentionally minimal. It aims to be a building block for CLI applications that
+want to leverage the standard library's `flag` package while providing a bit more structure and
+flexibility.
 
 - Build maintainable command-line tools quickly
 - Focus on application logic rather than framework complexity
@@ -46,7 +47,7 @@ Here's a simple example of a CLI application that echoes back the input:
 ```go
 root := &cli.Command{
 	Name:      "echo",
-	Usage:     "echo <text...> [flags]",
+	Usage:     "echo [flags] <text>...",
 	ShortHelp: "echo is a simple command that prints the provided text",
 	Flags: cli.FlagsFunc(func(f *flag.FlagSet) {
 		// Add a flag to capitalize the input
@@ -57,8 +58,7 @@ root := &cli.Command{
 	},
 	Exec: func(ctx context.Context, s *cli.State) error {
 		if len(s.Args) == 0 {
-			// Return a new error with the error code ErrShowHelp
-			return fmt.Errorf("no text provided")
+			return errors.New("must provide text to echo, see --help")
 		}
 		output := strings.Join(s.Args, " ")
 		// If -c flag is set, capitalize the output
@@ -69,8 +69,7 @@ root := &cli.Command{
 		return nil
 	},
 }
-err := cli.ParseAndRun(context.Background(), root, os.Args[1:], nil)
-if err != nil {
+if err := cli.ParseAndRun(context.Background(), root, os.Args[1:], nil); err != nil {
 	if errors.Is(err, flag.ErrHelp) {
 		return
 	}
@@ -88,7 +87,7 @@ Each command in your CLI application is represented by a `Command` struct:
 
 ```go
 type Command struct {
-	Name          string
+	Name          string // Required
 	Usage         string
 	ShortHelp     string
 	UsageFunc     func(*Command) string
@@ -103,8 +102,7 @@ The `Name` field is the command's name and is **required**.
 
 The `Usage` and `ShortHelp` fields are used to generate help text. Nice-to-have but not required.
 
-The `Flags` field is a `*flag.FlagSet` that defines the command's flags. The `SubCommands` field is
-a slice of child commands.
+The `Flags` field is a `*flag.FlagSet` that defines the command's flags.
 
 > [!TIP]
 >
@@ -124,8 +122,12 @@ root := &cli.Command{
 ```
 
 The `FlagsMetadata` field is a slice of `FlagMetadata` structs that define metadata for each flag.
-Unfortunatly, the `flag.FlagSet` package alone is a bit limiting, so this package adds a layer on
-top to provide the most common features.
+Unfortunatly, the `flag` package alone is a bit limiting, so this package adds a layer on top to
+provide the most common features, such as automatic handling of required flags.
+
+The `SubCommands` field is a slice of `*Command` structs that represent subcommands. This allows you
+to organize your CLI application into a hierarchy of commands. Each subcommand can have its own
+flags and business logic.
 
 The `Exec` field is a function that is called when the command is executed. This is where you put
 your business logic.
@@ -137,10 +139,8 @@ Flags can be accessed using the type-safe `GetFlag` function, called inside your
 ```go
 // Access boolean flag
 verbose := cli.GetFlag[bool](state, "verbose")
-
 // Access string flag
 output := cli.GetFlag[string](state, "output")
-
 // Access integer flag
 count := cli.GetFlag[int](state, "count")
 ```
@@ -183,8 +183,8 @@ When reading command usage strings, the following syntax is used:
 | ------------- | -------------------------- |
 | `<required>`  | Required argument          |
 | `[optional]`  | Optional argument          |
-| `<arg...>`    | One or more arguments      |
-| `[arg...]`    | Zero or more arguments     |
+| `<arg>...`    | One or more arguments      |
+| `[arg]...`    | Zero or more arguments     |
 | `(a\|b)`      | Must choose one of a or b  |
 | `[-f <file>]` | Flag with value (optional) |
 | `-f <file>`   | Flag with value (required) |
@@ -192,27 +192,36 @@ When reading command usage strings, the following syntax is used:
 Examples:
 
 ```bash
-# Two required arguments
-copy <source> <dest>
-# Zero or more paths
-ls [path...]
-# Optional flag with value, required host
-ssh [-p <port>] <user@host>
-# Required subcommand, optional remote
-git (pull|push) [remote]
+# Multiple source files, one destination
+mv <source>... <dest>
+
+# Required flag with value, optional config
+build -t <tag> [config]...
+
+# Subcommands with own flags
+docker (run|build) [--file <dockerfile>] <image>
+
+# Multiple flag values
+find [--exclude <pattern>]... <path>
+
+# Choice between options, required path
+chmod (u+x|a+r) <file>...
+
+# Flag groups with value
+kubectl [-n <namespace>] (get|delete) (pod|service) <name>
 ```
 
 ## Status
 
-This project is in active development and undergoing changes as the API is refined. Please open an
+This project is in active development and undergoing changes as the API gets refined. Please open an
 issue if you encounter any problems or have suggestions for improvement.
 
 - [x] Nail down required flags implementation
-- [ ] Add tests for typos and command suggestions, crude levenstein distance for now
-- [ ] Internal implementation (not user-facing), track selected `*Command` in `*State` and remove
+- [x] Add tests for typos and command suggestions, crude levenstein distance for now
+- [x] Internal implementation (not user-facing), track selected `*Command` in `*State` and remove
       `flags  *flag.FlagSet` from `*State`
-- [ ] Figure out whether to keep `*Error` and whether to catch `ErrShowHelp` in `ParseAndRun`
-- [ ] Should `Parse`, `Run` and `ParseAndRun` be methods on `*Command`?
+- [x] Figure out whether to keep `*Error` and whether to catch `ErrShowHelp` in `ParseAndRun`
+- [x] Should `Parse`, `Run` and `ParseAndRun` be methods on `*Command`? No.
 - [ ] What to do with `showHelp()`, should it be a standalone function or an exported method on
       `*Command`?
 - [ ] Is there room for `clihelp` package for standalone use?
@@ -224,7 +233,7 @@ needs](https://mfridman.com/blog/2021/a-simpler-building-block-for-go-clis/).
 
 I was inspired by Peter Bourgon's [ff](https://github.com/peterbourgon/ff) library, specifically the
 `v3` branch, which was soooo close to what I wanted. But the `v4` branch took a different direction
-and I wanted to keep the simplicity of the `v3` branch. This library aims to pick up where `ff/v3`
+and I wanted to keep the simplicity of the `v3` branch. This library aims to pick up where the `v3`
 left off.
 
 ## License
