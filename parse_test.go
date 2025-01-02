@@ -127,17 +127,17 @@ func TestParse(t *testing.T) {
 		t.Parallel()
 
 		by := bytes.NewBuffer(nil)
-		err := Parse(&Command{
+		root := &Command{
 			Name:  "root",
 			Usage: "root [flags]",
 			Flags: FlagsFunc(func(fset *flag.FlagSet) {
 				fset.SetOutput(by)
 			}),
-		}, []string{"--help"})
+		}
+		err := Parse(root, []string{"--help"})
 		require.Error(t, err)
 		require.ErrorIs(t, err, flag.ErrHelp)
-		require.Contains(t, by.String(), "Usage:")
-		require.Contains(t, by.String(), "root [flags]")
+		require.Empty(t, by.String())
 	})
 	t.Run("no flags", func(t *testing.T) {
 		t.Parallel()
@@ -157,7 +157,7 @@ func TestParse(t *testing.T) {
 
 		err := Parse(s.root, []string{"add", "--unknown", "item1"})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), `command "add": flag provided but not defined: -unknown`)
+		require.Contains(t, err.Error(), `command "todo add": flag provided but not defined: -unknown`)
 	})
 	t.Run("with subcommand flags", func(t *testing.T) {
 		t.Parallel()
@@ -341,7 +341,7 @@ func TestParse(t *testing.T) {
 			s := newTestState()
 			err := Parse(s.root, []string{"nested", "hello", "--mandatory-flag=not-a-bool"})
 			require.Error(t, err)
-			require.ErrorContains(t, err, `command "hello": invalid boolean value "not-a-bool" for -mandatory-flag: parse error`)
+			require.ErrorContains(t, err, `command "todo nested hello": invalid boolean value "not-a-bool" for -mandatory-flag: parse error`)
 		}
 	})
 	t.Run("unknown required flag set by cli author", func(t *testing.T) {

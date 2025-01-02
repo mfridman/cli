@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"regexp"
 	"slices"
 	"strconv"
@@ -50,44 +51,66 @@ func Parse(root *Command, args []string) error {
 	}
 
 	current := root
+	if current.Flags == nil {
+		current.Flags = flag.NewFlagSet(root.Name, flag.ContinueOnError)
+	}
 	var commandChain []*Command
 	commandChain = append(commandChain, root)
 
 	// Create combined flags with all parent flags
 	combinedFlags := flag.NewFlagSet(root.Name, flag.ContinueOnError)
+	combinedFlags.SetOutput(io.Discard)
 
 	// First pass: process commands and build the flag set
-	for _, arg := range argsToParse {
-		// Skip anything that looks like a flag
+	i := 0
+	for i < len(argsToParse) {
+		arg := argsToParse[i]
+
+		// Skip flags and their values
 		if strings.HasPrefix(arg, "-") {
+			// For formats like -flag=x or --flag=x
+			if strings.Contains(arg, "=") {
+				i++
+				continue
+			}
+
+			// Check if this flag expects a value
+			name := strings.TrimLeft(arg, "-")
+			if f := current.Flags.Lookup(name); f != nil {
+				if _, isBool := f.Value.(interface{ IsBoolFlag() bool }); !isBool {
+					// Skip both flag and its value
+					i += 2
+					continue
+				}
+			}
+			i++
 			continue
 		}
+
 		// Try to traverse to subcommand
 		if len(current.SubCommands) > 0 {
 			if sub := current.findSubCommand(arg); sub != nil {
-				// Update root state's command path
 				root.state.commandPath = append(slices.Clone(root.state.commandPath), sub)
-
 				if sub.Flags == nil {
 					sub.Flags = flag.NewFlagSet(sub.Name, flag.ContinueOnError)
 				}
 				current = sub
 				commandChain = append(commandChain, sub)
+				i++
 				continue
 			}
 			return current.formatUnknownCommandError(arg)
 		}
 		break
 	}
+	current.Flags.Usage = func() { /* suppress default usage */ }
 
 	// Add the help check here, after we've found the correct command
+	hasHelp := false
 	for _, arg := range argsToParse {
 		if arg == "-h" || arg == "--h" || arg == "-help" || arg == "--help" {
-			current.Flags.Usage = func() {
-				fmt.Fprintln(current.Flags.Output(), defaultUsage(current))
-			}
-			current.Flags.Usage()
-			return flag.ErrHelp
+			hasHelp = true
+			break
 		}
 	}
 
@@ -102,10 +125,15 @@ func Parse(root *Command, args []string) error {
 			})
 		}
 	}
+	// Make sure to return help only after combining all flags, this way we get the full list of
+	// flags in the help message!
+	if hasHelp {
+		return flag.ErrHelp
+	}
 
 	// Let ParseToEnd handle the flag parsing
 	if err := xflag.ParseToEnd(combinedFlags, argsToParse); err != nil {
-		return fmt.Errorf("command %q: %w", current.Name, err)
+		return fmt.Errorf("command %q: %w", getCommandPath(root.state.commandPath), err)
 	}
 
 	// Check required flags

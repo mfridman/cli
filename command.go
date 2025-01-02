@@ -1,15 +1,12 @@
 package cli
 
 import (
-	"cmp"
 	"context"
 	"flag"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/mfridman/cli/pkg/suggest"
-	"github.com/mfridman/cli/pkg/textutil"
 )
 
 // NoExecError is returned when a command has no execution function.
@@ -86,7 +83,7 @@ type FlagMetadata struct {
 //	    f.String("output", "", "output file")
 //	    f.Int("count", 0, "number of items")
 //	})
-func FlagsFunc(fn func(*flag.FlagSet)) *flag.FlagSet {
+func FlagsFunc(fn func(f *flag.FlagSet)) *flag.FlagSet {
 	fset := flag.NewFlagSet("", flag.ContinueOnError)
 	fn(fset)
 	return fset
@@ -115,174 +112,6 @@ func (c *Command) formatUnknownCommandError(unknownCmd string) error {
 			strings.Join(suggestions, "\n\t"))
 	}
 	return fmt.Errorf("unknown command %q", unknownCmd)
-}
-
-func defaultUsage(c *Command) string {
-	var b strings.Builder
-
-	// Handle custom usage function
-	if c.UsageFunc != nil {
-		return c.UsageFunc(c)
-	}
-
-	// Short help section
-	if c.ShortHelp != "" {
-		for _, line := range textutil.Wrap(c.ShortHelp, 80) {
-			b.WriteString(line)
-			b.WriteRune('\n')
-		}
-		b.WriteRune('\n')
-	}
-
-	// Usage section
-	b.WriteString("Usage:\n  ")
-	if c.Usage != "" {
-		b.WriteString(c.Usage)
-		b.WriteRune('\n')
-	} else {
-		usage := c.Name
-		if c.state != nil && len(c.state.commandPath) > 0 {
-			usage = getCommandPath(c.state.commandPath)
-		}
-		if c.Flags != nil {
-			usage += " [flags]"
-		}
-		if len(c.SubCommands) > 0 {
-			usage += " <command>"
-		}
-		b.WriteString(usage)
-		b.WriteRune('\n')
-	}
-
-	// Available Commands section
-	if len(c.SubCommands) > 0 {
-		b.WriteString("Available Commands:\n")
-
-		sortedCommands := slices.Clone(c.SubCommands)
-		slices.SortFunc(sortedCommands, func(a, b *Command) int {
-			return cmp.Compare(a.Name, b.Name)
-		})
-
-		maxLen := 0
-		for _, sub := range sortedCommands {
-			if len(sub.Name) > maxLen {
-				maxLen = len(sub.Name)
-			}
-		}
-
-		for _, sub := range sortedCommands {
-			if sub.ShortHelp == "" {
-				fmt.Fprintf(&b, "  %s\n", sub.Name)
-				continue
-			}
-
-			nameWidth := maxLen + 4
-			wrapWidth := 80 - nameWidth
-
-			lines := textutil.Wrap(sub.ShortHelp, wrapWidth)
-			padding := strings.Repeat(" ", maxLen-len(sub.Name)+4)
-			fmt.Fprintf(&b, "  %s%s%s\n", sub.Name, padding, lines[0])
-
-			indentPadding := strings.Repeat(" ", nameWidth+2)
-			for _, line := range lines[1:] {
-				fmt.Fprintf(&b, "%s%s\n", indentPadding, line)
-			}
-		}
-		b.WriteRune('\n')
-	}
-
-	var flags []flagInfo
-
-	if c.state != nil && len(c.state.commandPath) > 0 {
-		for i, cmd := range c.state.commandPath {
-			if cmd.Flags == nil {
-				continue
-			}
-			isGlobal := i < len(c.state.commandPath)-1
-			cmd.Flags.VisitAll(func(f *flag.Flag) {
-				flags = append(flags, flagInfo{
-					name:   "-" + f.Name,
-					usage:  f.Usage,
-					defval: f.DefValue,
-					global: isGlobal,
-				})
-			})
-		}
-	}
-
-	if len(flags) > 0 {
-		slices.SortFunc(flags, func(a, b flagInfo) int {
-			return cmp.Compare(a.name, b.name)
-		})
-
-		maxLen := 0
-		for _, f := range flags {
-			if len(f.name) > maxLen {
-				maxLen = len(f.name)
-			}
-		}
-
-		hasLocal := false
-		hasGlobal := false
-		for _, f := range flags {
-			if f.global {
-				hasGlobal = true
-			} else {
-				hasLocal = true
-			}
-		}
-
-		if hasLocal {
-			b.WriteString("Flags:\n")
-			writeFlagSection(&b, flags, maxLen, false)
-			b.WriteRune('\n')
-		}
-
-		if hasGlobal {
-			b.WriteString("Global Flags:\n")
-			writeFlagSection(&b, flags, maxLen, true)
-			b.WriteRune('\n')
-		}
-	}
-
-	// Help suggestion for subcommands
-	if len(c.SubCommands) > 0 {
-		fmt.Fprintf(&b, "Use \"%s [command] --help\" for more information about a command.\n",
-			getCommandPath(c.state.commandPath))
-	}
-
-	return strings.TrimRight(b.String(), "\n")
-}
-
-// writeFlagSection writes either the local or global flags section
-func writeFlagSection(b *strings.Builder, flags []flagInfo, maxLen int, global bool) {
-	for _, f := range flags {
-		if f.global == global {
-			nameWidth := maxLen + 4
-			wrapWidth := 80 - nameWidth
-
-			usageText := f.usage
-			if f.defval != "" && f.defval != "false" {
-				usageText += fmt.Sprintf(" (default %s)", f.defval)
-			}
-
-			lines := textutil.Wrap(usageText, wrapWidth)
-			padding := strings.Repeat(" ", maxLen-len(f.name)+4)
-			fmt.Fprintf(b, "  %s%s%s\n", f.name, padding, lines[0])
-
-			indentPadding := strings.Repeat(" ", nameWidth+2)
-			for _, line := range lines[1:] {
-				fmt.Fprintf(b, "%s%s\n", indentPadding, line)
-			}
-		}
-	}
-}
-
-type flagInfo struct {
-	name   string
-	usage  string
-	defval string
-	global bool
 }
 
 func formatFlagName(name string) string {
