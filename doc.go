@@ -1,4 +1,4 @@
-// Package cli provides a lightweight framework for building command-line applications using Go's
+// Package cli provides a lightweight library for building command-line applications using Go's
 // standard library flag package. It extends flag functionality to support flags anywhere in command
 // arguments.
 //
