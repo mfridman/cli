@@ -46,13 +46,14 @@ func (l *TaskList) Add(t Task) {
 	l.Tasks = append(l.Tasks, t)
 }
 
-func (l *TaskList) Remove(id int) {
+func (l *TaskList) Remove(id int) error {
 	for i, t := range l.Tasks {
 		if t.ID == id {
 			l.Tasks = append(l.Tasks[:i], l.Tasks[i+1:]...)
-			return
+			return nil
 		}
 	}
+	return fmt.Errorf("task with ID %d not found", id)
 }
 
 func (l *TaskList) List() []Task {

@@ -25,7 +25,7 @@ import (
 // 		├── add <text>
 // 		│   └── (-tags)
 // 		├── done <id>
-// 		└── remove <id>
+// 		└── remove <id> (-force, -all)
 
 func main() {
 	root := &cli.Command{
