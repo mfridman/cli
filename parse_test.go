@@ -90,14 +90,20 @@ func TestParse(t *testing.T) {
 			Name: "foo",
 			Exec: func(ctx context.Context, s *State) error { return nil },
 			SubCommands: []*Command{
-				{Name: "bar"},
+				{
+					Name: "bar",
+					Exec: func(ctx context.Context, s *State) error { return nil },
+					SubCommands: []*Command{
+						{
+							Name: "baz",
+						},
+					},
+				},
 			},
 		}
-		err := Parse(cmd, []string{"bar"})
+		err := Parse(cmd, []string{"bar", "baz"})
 		require.Error(t, err)
-		var noExecErr *NoExecError
-		require.ErrorAs(t, err, &noExecErr)
-		assert.ErrorContains(t, err, `command "foo bar" has no execution function`)
+		assert.ErrorContains(t, err, `command "foo bar baz": no exec function defined`)
 	})
 	t.Run("parsing errors", func(t *testing.T) {
 		t.Parallel()

@@ -9,15 +9,6 @@ import (
 	"github.com/mfridman/cli/pkg/suggest"
 )
 
-// NoExecError is returned when a command has no execution function.
-type NoExecError struct {
-	Command *Command
-}
-
-func (e *NoExecError) Error() string {
-	return fmt.Sprintf("command %q has no execution function", getCommandPath(e.Command.state.commandPath))
-}
-
 // Command represents a CLI command or subcommand within the application's command hierarchy.
 type Command struct {
 	// Name is always a single word representing the command's name. It is used to identify the

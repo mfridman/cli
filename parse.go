@@ -201,9 +201,7 @@ func Parse(root *Command, args []string) error {
 	root.state.Args = finalArgs
 
 	if current.Exec == nil {
-		return &NoExecError{
-			Command: root, // Pass the root command which has the state with the full path
-		}
+		return fmt.Errorf("command %q: no exec function defined", getCommandPath(root.state.commandPath))
 	}
 	return nil
 }
