@@ -8,25 +8,6 @@ import (
 	"os"
 )
 
-// ParseAndRun parses the command hierarchy and runs the command. A convenience function that
-// combines [Parse] and [Run] into a single call. See [Parse] and [Run] for more details.
-func ParseAndRun(ctx context.Context, root *Command, args []string, options *RunOptions) (retErr error) {
-	if err := Parse(root, args); err != nil {
-		return err
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			switch err := r.(type) {
-			case error:
-				retErr = fmt.Errorf("internal: %v", err)
-			default:
-				retErr = fmt.Errorf("recovered: %v", r)
-			}
-		}
-	}()
-	return Run(ctx, root, options)
-}
-
 // RunOptions specifies options for running a command.
 type RunOptions struct {
 	// Stdin, Stdout, and Stderr are the standard input, output, and error streams for the command.
@@ -48,10 +29,30 @@ func Run(ctx context.Context, root *Command, options *RunOptions) error {
 	if root.state == nil || len(root.state.path) == 0 {
 		return errors.New("command has not been parsed")
 	}
+	cmd := root.terminal()
+	if cmd == nil {
+		// This should never happen, but if it does, it's likely a bug in the Parse function.
+		return errors.New("no terminal command found")
+	}
+
 	options = checkAndSetRunOptions(options)
 	updateState(root.state, options)
 
-	return root.terminal().Exec(ctx, root.state)
+	return run(ctx, cmd, root.state)
+}
+
+func run(ctx context.Context, cmd *Command, state *State) (retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			switch err := r.(type) {
+			case error:
+				retErr = fmt.Errorf("internal: %v", err)
+			default:
+				retErr = fmt.Errorf("recover: %v", r)
+			}
+		}
+	}()
+	return cmd.Exec(ctx, state)
 }
 
 func updateState(s *State, opt *RunOptions) {
