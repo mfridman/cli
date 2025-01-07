@@ -30,11 +30,11 @@ func Parse(root *Command, args []string) error {
 	// Initialize or update root state
 	if root.state == nil {
 		root.state = &State{
-			commandPath: []*Command{root},
+			path: []*Command{root},
 		}
 	} else {
 		// Reset command path but preserve other state
-		root.state.commandPath = []*Command{root}
+		root.state.path = []*Command{root}
 	}
 	// First split args at the -- delimiter if present
 	var argsToParse []string
@@ -90,7 +90,7 @@ func Parse(root *Command, args []string) error {
 		// Try to traverse to subcommand
 		if len(current.SubCommands) > 0 {
 			if sub := current.findSubCommand(arg); sub != nil {
-				root.state.commandPath = append(slices.Clone(root.state.commandPath), sub)
+				root.state.path = append(slices.Clone(root.state.path), sub)
 				if sub.Flags == nil {
 					sub.Flags = flag.NewFlagSet(sub.Name, flag.ContinueOnError)
 				}
@@ -133,7 +133,7 @@ func Parse(root *Command, args []string) error {
 
 	// Let ParseToEnd handle the flag parsing
 	if err := xflag.ParseToEnd(combinedFlags, argsToParse); err != nil {
-		return fmt.Errorf("command %q: %w", getCommandPath(root.state.commandPath), err)
+		return fmt.Errorf("command %q: %w", getCommandPath(root.state.path), err)
 	}
 
 	// Check required flags
@@ -146,7 +146,7 @@ func Parse(root *Command, args []string) error {
 				}
 				flag := combinedFlags.Lookup(flagMetadata.Name)
 				if flag == nil {
-					return fmt.Errorf("command %q: internal error: required flag %s not found in flag set", getCommandPath(root.state.commandPath), formatFlagName(flagMetadata.Name))
+					return fmt.Errorf("command %q: internal error: required flag %s not found in flag set", getCommandPath(root.state.path), formatFlagName(flagMetadata.Name))
 				}
 				if _, isBool := flag.Value.(interface{ IsBoolFlag() bool }); isBool {
 					isSet := false
@@ -170,7 +170,7 @@ func Parse(root *Command, args []string) error {
 		if len(missingFlags) > 1 {
 			msg += "s"
 		}
-		return fmt.Errorf("command %q: %s %q not set", getCommandPath(root.state.commandPath), msg, strings.Join(missingFlags, ", "))
+		return fmt.Errorf("command %q: %s %q not set", getCommandPath(root.state.path), msg, strings.Join(missingFlags, ", "))
 	}
 
 	// Skip past command names in remaining args
@@ -201,7 +201,7 @@ func Parse(root *Command, args []string) error {
 	root.state.Args = finalArgs
 
 	if current.Exec == nil {
-		return fmt.Errorf("command %q: no exec function defined", getCommandPath(root.state.commandPath))
+		return fmt.Errorf("command %q: no exec function defined", getCommandPath(root.state.path))
 	}
 	return nil
 }

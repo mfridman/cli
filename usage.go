@@ -10,13 +10,16 @@ import (
 	"github.com/mfridman/cli/pkg/textutil"
 )
 
-func DefaultUsage(c *Command) string {
-	if c == nil {
+// DefaultUsage returns the default usage string for the command hierarchy. It is used when the
+// command does not provide a custom usage function. The usage string includes the command's short
+// help, usage pattern, available subcommands, and flags.
+func DefaultUsage(root *Command) string {
+	if root == nil {
 		return ""
 	}
 
 	// Get terminal command from state
-	terminalCmd, _ := c.terminal()
+	terminalCmd := root.terminal()
 
 	var b strings.Builder
 
@@ -34,8 +37,8 @@ func DefaultUsage(c *Command) string {
 		b.WriteString("  " + terminalCmd.Usage + "\n")
 	} else {
 		usage := terminalCmd.Name
-		if c.state != nil && len(c.state.commandPath) > 0 {
-			usage = getCommandPath(c.state.commandPath)
+		if root.state != nil && len(root.state.path) > 0 {
+			usage = getCommandPath(root.state.path)
 		}
 		if terminalCmd.Flags != nil {
 			usage += " [flags]"
@@ -83,12 +86,12 @@ func DefaultUsage(c *Command) string {
 	}
 
 	var flags []flagInfo
-	if c.state != nil && len(c.state.commandPath) > 0 {
-		for i, cmd := range c.state.commandPath {
+	if root.state != nil && len(root.state.path) > 0 {
+		for i, cmd := range root.state.path {
 			if cmd.Flags == nil {
 				continue
 			}
-			isGlobal := i < len(c.state.commandPath)-1
+			isGlobal := i < len(root.state.path)-1
 			cmd.Flags.VisitAll(func(f *flag.Flag) {
 				flags = append(flags, flagInfo{
 					name:   "-" + f.Name,
@@ -137,8 +140,8 @@ func DefaultUsage(c *Command) string {
 
 	if len(terminalCmd.SubCommands) > 0 {
 		cmdName := terminalCmd.Name
-		if c.state != nil && len(c.state.commandPath) > 0 {
-			cmdName = getCommandPath(c.state.commandPath)
+		if root.state != nil && len(root.state.path) > 0 {
+			cmdName = getCommandPath(root.state.path)
 		}
 		fmt.Fprintf(&b, "Use \"%s [command] --help\" for more information about a command.\n", cmdName)
 	}

@@ -16,7 +16,9 @@ type State struct {
 	Stdin          io.Reader
 	Stdout, Stderr io.Writer
 
-	commandPath []*Command
+	// path is the command hierarchy from the root command to the current command. The root command
+	// is the first element in the path, and the terminal command is the last element.
+	path []*Command
 }
 
 // GetFlag retrieves a flag value by name from the command hierarchy. It first checks the current
@@ -31,8 +33,8 @@ type State struct {
 //	path := GetFlag[string](state, "path")
 func GetFlag[T any](s *State, name string) T {
 	// Try to find the flag in each command's flag set, starting from the current command
-	for i := len(s.commandPath) - 1; i >= 0; i-- {
-		cmd := s.commandPath[i]
+	for i := len(s.path) - 1; i >= 0; i-- {
+		cmd := s.path[i]
 		if cmd.Flags == nil {
 			continue
 		}
@@ -45,7 +47,7 @@ func GetFlag[T any](s *State, name string) T {
 				}
 				err := fmt.Errorf("type mismatch for flag %q in command %q: registered %T, requested %T",
 					formatFlagName(name),
-					getCommandPath(s.commandPath),
+					getCommandPath(s.path),
 					value,
 					*new(T),
 				)
@@ -58,7 +60,7 @@ func GetFlag[T any](s *State, name string) T {
 	// If flag not found anywhere in hierarchy, panic with helpful message
 	err := fmt.Errorf("flag %q not found in command %q flag set",
 		formatFlagName(name),
-		getCommandPath(s.commandPath),
+		getCommandPath(s.path),
 	)
 	panic(err)
 }

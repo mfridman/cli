@@ -17,7 +17,7 @@ func TestGetFlag(t *testing.T) {
 			Flags: flag.NewFlagSet("root", flag.ContinueOnError),
 		}
 		state := &State{
-			commandPath: []*Command{cmd},
+			path: []*Command{cmd},
 		}
 		defer func() {
 			r := recover()
@@ -35,7 +35,7 @@ func TestGetFlag(t *testing.T) {
 			Flags: FlagsFunc(func(f *flag.FlagSet) { f.String("version", "1.0.0", "show version") }),
 		}
 		state := &State{
-			commandPath: []*Command{cmd},
+			path: []*Command{cmd},
 		}
 		defer func() {
 			r := recover()

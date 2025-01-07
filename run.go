@@ -45,14 +45,13 @@ func Run(ctx context.Context, root *Command, options *RunOptions) error {
 	if root == nil {
 		return errors.New("root command is nil")
 	}
-	if root.state == nil || len(root.state.commandPath) == 0 {
+	if root.state == nil || len(root.state.path) == 0 {
 		return errors.New("command has not been parsed")
 	}
 	options = checkAndSetRunOptions(options)
 	updateState(root.state, options)
 
-	terminal, state := root.terminal()
-	return terminal.Exec(ctx, state)
+	return root.terminal().Exec(ctx, root.state)
 }
 
 func updateState(s *State, opt *RunOptions) {

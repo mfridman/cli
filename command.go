@@ -47,14 +47,21 @@ type Command struct {
 	state *State
 }
 
-func (c *Command) terminal() (*Command, *State) {
-	if c.state == nil || len(c.state.commandPath) == 0 {
-		return c, c.state
+// Path returns the command chain from root to current command. It can only be called after the root
+// command has been parsed and the command hierarchy has been established.
+func (c *Command) Path() []*Command {
+	if c.state == nil {
+		return nil
 	}
+	return c.state.path
+}
 
+func (c *Command) terminal() *Command {
+	if c.state == nil || len(c.state.path) == 0 {
+		return c
+	}
 	// Get the last command in the path - this is our terminal command
-	terminalCmd := c.state.commandPath[len(c.state.commandPath)-1]
-	return terminalCmd, c.state
+	return c.state.path[len(c.state.path)-1]
 }
 
 // FlagMetadata holds additional metadata for a flag, such as whether it is required.

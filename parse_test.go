@@ -151,11 +151,10 @@ func TestParse(t *testing.T) {
 
 		err := Parse(s.root, []string{"add", "item1"})
 		require.NoError(t, err)
-		require.NotNil(t, s.root.state)
-		require.NotEmpty(t, s.root.state.commandPath)
-		cmd, state := s.root.terminal()
+		cmd := getCommand(t, s.root)
+
 		require.Equal(t, s.add, cmd)
-		require.False(t, GetFlag[bool](state, "dry-run"))
+		require.False(t, GetFlag[bool](s.root.state, "dry-run"))
 	})
 	t.Run("unknown flag", func(t *testing.T) {
 		t.Parallel()
@@ -171,9 +170,10 @@ func TestParse(t *testing.T) {
 
 		err := Parse(s.root, []string{"add", "--dry-run", "item1"})
 		require.NoError(t, err)
-		cmd, state := s.root.terminal()
+		cmd := getCommand(t, s.root)
+
 		assert.Equal(t, s.add, cmd)
-		assert.True(t, GetFlag[bool](state, "dry-run"))
+		assert.True(t, GetFlag[bool](s.root.state, "dry-run"))
 	})
 	t.Run("help flag", func(t *testing.T) {
 		t.Parallel()
@@ -221,10 +221,11 @@ func TestParse(t *testing.T) {
 
 		err := Parse(s.root, []string{"add", "--dry-run", "item1", "--verbose"})
 		require.NoError(t, err)
-		cmd, state := s.root.terminal()
+		cmd := getCommand(t, s.root)
+
 		assert.Equal(t, s.add, cmd)
-		assert.True(t, GetFlag[bool](state, "dry-run"))
-		assert.True(t, GetFlag[bool](state, "verbose"))
+		assert.True(t, GetFlag[bool](s.root.state, "dry-run"))
+		assert.True(t, GetFlag[bool](s.root.state, "verbose"))
 	})
 	t.Run("nested subcommand and root flag", func(t *testing.T) {
 		t.Parallel()
@@ -232,10 +233,11 @@ func TestParse(t *testing.T) {
 
 		err := Parse(s.root, []string{"--verbose", "nested", "sub", "--echo", "hello"})
 		require.NoError(t, err)
-		cmd, state := s.root.terminal()
+		cmd := getCommand(t, s.root)
+
 		assert.Equal(t, s.sub, cmd)
-		assert.Equal(t, "hello", GetFlag[string](state, "echo"))
-		assert.True(t, GetFlag[bool](state, "verbose"))
+		assert.Equal(t, "hello", GetFlag[string](s.root.state, "echo"))
+		assert.True(t, GetFlag[bool](s.root.state, "verbose"))
 	})
 	t.Run("nested subcommand with mixed flags", func(t *testing.T) {
 		t.Parallel()
@@ -243,10 +245,11 @@ func TestParse(t *testing.T) {
 
 		err := Parse(s.root, []string{"nested", "sub", "--echo", "hello", "--verbose"})
 		require.NoError(t, err)
-		cmd, state := s.root.terminal()
+		cmd := getCommand(t, s.root)
+
 		assert.Equal(t, s.sub, cmd)
-		assert.Equal(t, "hello", GetFlag[string](state, "echo"))
-		assert.True(t, GetFlag[bool](state, "verbose"))
+		assert.Equal(t, "hello", GetFlag[string](s.root.state, "echo"))
+		assert.True(t, GetFlag[bool](s.root.state, "verbose"))
 	})
 	t.Run("end of options delimiter", func(t *testing.T) {
 		t.Parallel()
@@ -254,10 +257,11 @@ func TestParse(t *testing.T) {
 
 		err := Parse(s.root, []string{"--verbose", "--", "nested", "sub", "--echo", "hello"})
 		require.NoError(t, err)
-		cmd, state := s.root.terminal()
+		cmd := getCommand(t, s.root)
+
 		assert.Equal(t, s.root, cmd)
-		assert.Equal(t, []string{"nested", "sub", "--echo", "hello"}, state.Args)
-		assert.True(t, GetFlag[bool](state, "verbose"))
+		assert.Equal(t, []string{"nested", "sub", "--echo", "hello"}, s.root.state.Args)
+		assert.True(t, GetFlag[bool](s.root.state, "verbose"))
 	})
 	t.Run("flags and args", func(t *testing.T) {
 		t.Parallel()
@@ -265,10 +269,11 @@ func TestParse(t *testing.T) {
 
 		err := Parse(s.root, []string{"add", "item1", "--dry-run", "item2"})
 		require.NoError(t, err)
-		cmd, state := s.root.terminal()
+		cmd := getCommand(t, s.root)
+
 		assert.Equal(t, s.add, cmd)
-		assert.True(t, GetFlag[bool](state, "dry-run"))
-		assert.Equal(t, []string{"item1", "item2"}, state.Args)
+		assert.True(t, GetFlag[bool](s.root.state, "dry-run"))
+		assert.Equal(t, []string{"item1", "item2"}, s.root.state.Args)
 	})
 	t.Run("nested subcommand with flags and args", func(t *testing.T) {
 		t.Parallel()
@@ -276,10 +281,11 @@ func TestParse(t *testing.T) {
 
 		err := Parse(s.root, []string{"nested", "sub", "--echo", "hello", "world"})
 		require.NoError(t, err)
-		cmd, state := s.root.terminal()
+		cmd := getCommand(t, s.root)
+
 		assert.Equal(t, s.sub, cmd)
-		assert.Equal(t, "hello", GetFlag[string](state, "echo"))
-		assert.Equal(t, []string{"world"}, state.Args)
+		assert.Equal(t, "hello", GetFlag[string](s.root.state, "echo"))
+		assert.Equal(t, []string{"world"}, s.root.state.Args)
 	})
 	t.Run("subcommand flags not available in parent", func(t *testing.T) {
 		t.Parallel()
@@ -295,9 +301,10 @@ func TestParse(t *testing.T) {
 
 		err := Parse(s.root, []string{"nested", "sub", "--force"})
 		require.NoError(t, err)
-		cmd, state := s.root.terminal()
+		cmd := getCommand(t, s.root)
+
 		assert.Equal(t, s.sub, cmd)
-		assert.True(t, GetFlag[bool](state, "force"))
+		assert.True(t, GetFlag[bool](s.root.state, "force"))
 	})
 	t.Run("unrelated subcommand flags not inherited in other subcommands", func(t *testing.T) {
 		t.Parallel()
@@ -329,18 +336,19 @@ func TestParse(t *testing.T) {
 			s := newTestState()
 			err := Parse(s.root, []string{"nested", "hello", "--mandatory-flag=true", "--another-mandatory-flag", "some-value"})
 			require.NoError(t, err)
-			cmd, state := s.root.terminal()
+			cmd := getCommand(t, s.root)
+
 			assert.Equal(t, s.hello, cmd)
-			require.True(t, GetFlag[bool](state, "mandatory-flag"))
+			require.True(t, GetFlag[bool](s.root.state, "mandatory-flag"))
 		}
 		{
 			// Correct type - false
 			s := newTestState()
 			err := Parse(s.root, []string{"nested", "hello", "--mandatory-flag=false", "--another-mandatory-flag=some-value"})
 			require.NoError(t, err)
-			cmd, state := s.root.terminal()
+			cmd := s.root.terminal()
 			assert.Equal(t, s.hello, cmd)
-			require.False(t, GetFlag[bool](state, "mandatory-flag"))
+			require.False(t, GetFlag[bool](s.root.state, "mandatory-flag"))
 		}
 		{
 			// Incorrect type
@@ -376,4 +384,13 @@ func TestParse(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, `failed to parse: command ["root", "sub command"]: must contain only letters, no spaces or special characters`)
 	})
+}
+
+func getCommand(t *testing.T, c *Command) *Command {
+	require.NotNil(t, c)
+	require.NotNil(t, c.state)
+	require.NotEmpty(t, c.state.path)
+	terminal := c.terminal()
+	require.NotNil(t, terminal)
+	return terminal
 }
