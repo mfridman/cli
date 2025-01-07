@@ -3,16 +3,27 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 )
 
 // ParseAndRun parses the command hierarchy and runs the command. A convenience function that
 // combines [Parse] and [Run] into a single call. See [Parse] and [Run] for more details.
-func ParseAndRun(ctx context.Context, root *Command, args []string, options *RunOptions) error {
+func ParseAndRun(ctx context.Context, root *Command, args []string, options *RunOptions) (retErr error) {
 	if err := Parse(root, args); err != nil {
 		return err
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			switch err := r.(type) {
+			case error:
+				retErr = fmt.Errorf("internal: %v", err)
+			default:
+				retErr = fmt.Errorf("recovered: %v", r)
+			}
+		}
+	}()
 	return Run(ctx, root, options)
 }
 

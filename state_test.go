@@ -22,7 +22,9 @@ func TestGetFlag(t *testing.T) {
 		defer func() {
 			r := recover()
 			require.NotNil(t, r)
-			assert.Equal(t, `internal error: flag "-version" not found in "root" flag set`, r)
+			err, ok := r.(error)
+			require.True(t, ok)
+			assert.ErrorContains(t, err, `flag "-version" not found in command "root" flag set`)
 		}()
 		// Panic because author tried to access a flag that doesn't exist in any of the commands
 		_ = GetFlag[string](state, "version")
@@ -38,7 +40,9 @@ func TestGetFlag(t *testing.T) {
 		defer func() {
 			r := recover()
 			require.NotNil(t, r)
-			assert.Equal(t, `internal error: type mismatch for flag "-version" in command "root": registered string, requested int`, r)
+			err, ok := r.(error)
+			require.True(t, ok)
+			assert.ErrorContains(t, err, `type mismatch for flag "-version" in command "root": registered string, requested int`)
 		}()
 		// Panic because author tried to access a registered flag with the wrong type
 		_ = GetFlag[int](state, "version")

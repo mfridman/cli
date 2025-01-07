@@ -6,9 +6,8 @@ import (
 	"io"
 )
 
-// State represents the shared state for a command execution. It maintains a hierarchical structure
-// that allows child commands to access global flags defined in parent commands. Use [GetFlag] to
-// retrieve flag values by name.
+// State holds command information during Exec function execution, allowing child commands to access
+// parent flags. Use [GetFlag] to get flag values across the command hierarchy.
 type State struct {
 	// Args contains the remaining arguments after flag parsing.
 	Args []string
@@ -20,18 +19,16 @@ type State struct {
 	commandPath []*Command
 }
 
-// GetFlag retrieves a flag value by name, with type inference. It traverses up the state hierarchy
-// to find the flag, allowing access to parent command flags. Example usage:
+// GetFlag retrieves a flag value by name from the command hierarchy. It first checks the current
+// command's flags, then walks up through parent commands.
+//
+// If the flag doesn't exist or if the type doesn't match the requested type T an error will be
+// raised in the Run function. This is an internal error and should never happen in normal usage.
+// This ensures flag-related programming errors are caught early during development.
 //
 //	verbose := GetFlag[bool](state, "verbose")
 //	count := GetFlag[int](state, "count")
 //	path := GetFlag[string](state, "path")
-//
-// If the flag isn't known, or is the wrong type, it panics with a detailed error message.
-//
-// Why panic? Because if a flag is missing, it's likely a programming error or a missing flag
-// definition, and it's better to fail LOUD and EARLY than to silently ignore the issue and cause
-// unexpected behavior.
 func GetFlag[T any](s *State, name string) T {
 	// Try to find the flag in each command's flag set, starting from the current command
 	for i := len(s.commandPath) - 1; i >= 0; i-- {
@@ -46,22 +43,22 @@ func GetFlag[T any](s *State, name string) T {
 				if v, ok := value.(T); ok {
 					return v
 				}
-				msg := fmt.Sprintf("internal error: type mismatch for flag %q in command %q: registered %T, requested %T",
+				err := fmt.Errorf("type mismatch for flag %q in command %q: registered %T, requested %T",
 					formatFlagName(name),
 					getCommandPath(s.commandPath),
 					value,
 					*new(T),
 				)
 				// Flag exists but type doesn't match - this is an internal error
-				panic(msg)
+				panic(err)
 			}
 		}
 	}
 
 	// If flag not found anywhere in hierarchy, panic with helpful message
-	msg := fmt.Sprintf("internal error: flag %q not found in %q flag set",
+	err := fmt.Errorf("flag %q not found in command %q flag set",
 		formatFlagName(name),
 		getCommandPath(s.commandPath),
 	)
-	panic(msg)
+	panic(err)
 }
