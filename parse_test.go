@@ -382,7 +382,19 @@ func TestParse(t *testing.T) {
 		}
 		err := Parse(cmd, nil)
 		require.Error(t, err)
-		require.ErrorContains(t, err, `failed to parse: command ["root", "sub command"]: must contain only letters, no spaces or special characters`)
+		require.ErrorContains(t, err, `failed to parse: command ["root", "sub command"]: name must start with a letter and contain only letters, numbers, dashes (-) or underscores (_)`)
+	})
+	t.Run("dash in command name", func(t *testing.T) {
+		t.Parallel()
+		cmd := &Command{
+			Name: "root",
+			Exec: func(ctx context.Context, s *State) error { return nil },
+			SubCommands: []*Command{
+				{Name: "sub-command"},
+			},
+		}
+		err := Parse(cmd, nil)
+		require.NoError(t, err)
 	})
 }
 

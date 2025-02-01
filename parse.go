@@ -206,11 +206,11 @@ func Parse(root *Command, args []string) error {
 	return nil
 }
 
-var validNameRegex = regexp.MustCompile(`^[a-zA-Z]+$`)
+var validNameRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]*$`)
 
 func validateName(root *Command) error {
 	if !validNameRegex.MatchString(root.Name) {
-		return fmt.Errorf("must contain only letters, no spaces or special characters")
+		return fmt.Errorf("name must start with a letter and contain only letters, numbers, dashes (-) or underscores (_)")
 	}
 	return nil
 }
