@@ -1,0 +1,379 @@
+package cli
+
+import (
+	"context"
+	"flag"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestUsageGeneration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("default usage with no flags", func(t *testing.T) {
+		t.Parallel()
+		
+		cmd := &Command{
+			Name: "simple",
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		
+		err := Parse(cmd, []string{})
+		require.NoError(t, err)
+		
+		output := DefaultUsage(cmd)
+		require.NotEmpty(t, output)
+		require.Contains(t, output, "simple")
+		require.Contains(t, output, "Usage:")
+	})
+
+	t.Run("usage with flags", func(t *testing.T) {
+		t.Parallel()
+		
+		cmd := &Command{
+			Name: "withflags",
+			Flags: FlagsFunc(func(fset *flag.FlagSet) {
+				fset.Bool("verbose", false, "enable verbose mode")
+				fset.String("config", "", "config file path")
+				fset.Int("count", 1, "number of items")
+			}),
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		
+		err := Parse(cmd, []string{})
+		require.NoError(t, err)
+		
+		output := DefaultUsage(cmd)
+		require.Contains(t, output, "withflags")
+		require.Contains(t, output, "-verbose")
+		require.Contains(t, output, "-config")
+		require.Contains(t, output, "-count")
+		require.Contains(t, output, "enable verbose mode")
+		require.Contains(t, output, "config file path")
+		require.Contains(t, output, "number of items")
+	})
+
+	t.Run("usage with subcommands", func(t *testing.T) {
+		t.Parallel()
+		
+		cmd := &Command{
+			Name: "parent",
+			SubCommands: []*Command{
+				{Name: "child1", ShortHelp: "first child command", Exec: func(ctx context.Context, s *State) error { return nil }},
+				{Name: "child2", ShortHelp: "second child command", Exec: func(ctx context.Context, s *State) error { return nil }},
+			},
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		
+		err := Parse(cmd, []string{})
+		require.NoError(t, err)
+		
+		output := DefaultUsage(cmd)
+		require.Contains(t, output, "parent")
+		require.Contains(t, output, "child1")
+		require.Contains(t, output, "child2")
+		require.Contains(t, output, "first child command")
+		require.Contains(t, output, "second child command")
+		require.Contains(t, output, "Available Commands:")
+	})
+
+	t.Run("usage with flags and subcommands", func(t *testing.T) {
+		t.Parallel()
+		
+		cmd := &Command{
+			Name: "complex",
+			ShortHelp: "complex command with flags and subcommands",
+			Flags: FlagsFunc(func(fset *flag.FlagSet) {
+				fset.Bool("global", false, "global flag")
+			}),
+			SubCommands: []*Command{
+				{
+					Name: "sub",
+					ShortHelp: "subcommand with its own flags",
+					Flags: FlagsFunc(func(fset *flag.FlagSet) {
+						fset.String("local", "", "local flag")
+					}),
+					Exec: func(ctx context.Context, s *State) error { return nil },
+				},
+			},
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		
+		err := Parse(cmd, []string{})
+		require.NoError(t, err)
+		
+		output := DefaultUsage(cmd)
+		require.Contains(t, output, "complex")
+		require.Contains(t, output, "complex command with flags and subcommands")
+		require.Contains(t, output, "-global")
+		require.Contains(t, output, "global flag")
+		require.Contains(t, output, "sub")
+		require.Contains(t, output, "subcommand with its own flags")
+	})
+
+	t.Run("usage with very long descriptions", func(t *testing.T) {
+		t.Parallel()
+		
+		longDesc := "This is a very long description that should be wrapped properly when displayed in the usage output to ensure readability and proper formatting"
+		cmd := &Command{
+			Name: "longdesc",
+			ShortHelp: longDesc,
+			Flags: FlagsFunc(func(fset *flag.FlagSet) {
+				fset.String("long-flag", "", longDesc)
+			}),
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		
+		err := Parse(cmd, []string{})
+		require.NoError(t, err)
+		
+		output := DefaultUsage(cmd)
+		require.Contains(t, output, "longdesc")
+		require.Contains(t, output, "very long description")
+		require.Contains(t, output, "-long-flag")
+	})
+
+	t.Run("usage with no subcommands but global flags", func(t *testing.T) {
+		t.Parallel()
+		
+		cmd := &Command{
+			Name: "globalonly",
+			Flags: FlagsFunc(func(fset *flag.FlagSet) {
+				fset.Bool("debug", false, "enable debug mode")
+				fset.String("output", "", "output file")
+			}),
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		
+		err := Parse(cmd, []string{})
+		require.NoError(t, err)
+		
+		output := DefaultUsage(cmd)
+		require.Contains(t, output, "globalonly")
+		require.Contains(t, output, "-debug")
+		require.Contains(t, output, "-output")
+		require.Contains(t, output, "enable debug mode")
+		require.Contains(t, output, "output file")
+	})
+
+	t.Run("usage with many subcommands", func(t *testing.T) {
+		t.Parallel()
+		
+		var subcommands []*Command
+		for i := 0; i < 10; i++ {
+			subcommands = append(subcommands, &Command{
+				Name: "cmd" + string(rune('0'+i)),
+				ShortHelp: "command number " + string(rune('0'+i)),
+				Exec: func(ctx context.Context, s *State) error { return nil },
+			})
+		}
+		
+		cmd := &Command{
+			Name: "manychildren",
+			SubCommands: subcommands,
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		
+		err := Parse(cmd, []string{})
+		require.NoError(t, err)
+		
+		output := DefaultUsage(cmd)
+		require.Contains(t, output, "manychildren")
+		for i := 0; i < 10; i++ {
+			require.Contains(t, output, "cmd"+string(rune('0'+i)))
+			require.Contains(t, output, "command number "+string(rune('0'+i)))
+		}
+	})
+
+	t.Run("usage with empty command structure", func(t *testing.T) {
+		t.Parallel()
+		
+		cmd := &Command{
+			Name: "empty",
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		
+		err := Parse(cmd, []string{})
+		require.NoError(t, err)
+		
+		output := DefaultUsage(cmd)
+		require.Contains(t, output, "empty")
+		require.NotEmpty(t, output)
+	})
+
+	t.Run("usage with nested command hierarchy", func(t *testing.T) {
+		t.Parallel()
+		
+		child := &Command{
+			Name: "child",
+			ShortHelp: "nested child command",
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		parent := &Command{
+			Name: "parent",
+			ShortHelp: "parent command",
+			SubCommands: []*Command{child},
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		root := &Command{
+			Name: "root",
+			ShortHelp: "root command",
+			SubCommands: []*Command{parent},
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		
+		err := Parse(root, []string{})
+		require.NoError(t, err)
+		
+		output := DefaultUsage(root)
+		require.Contains(t, output, "root")
+		require.Contains(t, output, "root command")
+		require.Contains(t, output, "parent")
+		require.Contains(t, output, "parent command")
+		// Child should not appear in root's usage
+		require.NotContains(t, output, "child")
+		require.NotContains(t, output, "nested child command")
+	})
+
+	t.Run("usage with mixed flag types", func(t *testing.T) {
+		t.Parallel()
+		
+		cmd := &Command{
+			Name: "mixed",
+			Flags: FlagsFunc(func(fset *flag.FlagSet) {
+				fset.Bool("bool-flag", false, "boolean flag")
+				fset.String("string-flag", "default", "string flag")
+				fset.Int("int-flag", 0, "integer flag")
+				fset.Float64("float-flag", 0.0, "float flag")
+			}),
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		
+		err := Parse(cmd, []string{})
+		require.NoError(t, err)
+		
+		output := DefaultUsage(cmd)
+		require.Contains(t, output, "-bool-flag")
+		require.Contains(t, output, "-string-flag")
+		require.Contains(t, output, "-int-flag")
+		require.Contains(t, output, "-float-flag")
+		
+		require.Contains(t, output, "boolean flag")
+		require.Contains(t, output, "string flag")
+		require.Contains(t, output, "integer flag")
+		require.Contains(t, output, "float flag")
+	})
+
+	t.Run("usage before parsing", func(t *testing.T) {
+		t.Parallel()
+		
+		cmd := &Command{
+			Name: "unparsed",
+			Flags: FlagsFunc(func(fset *flag.FlagSet) {
+				fset.Bool("flag", false, "test flag")
+			}),
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		
+		// Usage should work even before parsing
+		output := DefaultUsage(cmd)
+		require.NotEmpty(t, output)
+		// But it may be limited without state
+	})
+
+	t.Run("usage with custom usage string", func(t *testing.T) {
+		t.Parallel()
+		
+		cmd := &Command{
+			Name: "custom",
+			Usage: "custom [options] <file>",
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		
+		err := Parse(cmd, []string{})
+		require.NoError(t, err)
+		
+		output := DefaultUsage(cmd)
+		require.Contains(t, output, "custom [options] <file>")
+	})
+
+	t.Run("usage with global and local flags", func(t *testing.T) {
+		t.Parallel()
+		
+		child := &Command{
+			Name: "child",
+			Flags: FlagsFunc(func(fset *flag.FlagSet) {
+				fset.String("local", "", "local flag")
+			}),
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		parent := &Command{
+			Name: "parent",
+			Flags: FlagsFunc(func(fset *flag.FlagSet) {
+				fset.Bool("global", false, "global flag")
+			}),
+			SubCommands: []*Command{child},
+		}
+		
+		err := Parse(parent, []string{"child"})
+		require.NoError(t, err)
+		
+		output := DefaultUsage(parent)
+		require.Contains(t, output, "-local")
+		require.Contains(t, output, "-global")
+		require.Contains(t, output, "local flag")
+		require.Contains(t, output, "global flag")
+	})
+}
+
+func TestWriteFlagSection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("writeFlagSection helper function", func(t *testing.T) {
+		t.Parallel()
+		
+		// Test the internal behavior through DefaultUsage since writeFlagSection is not exported
+		cmd := &Command{
+			Name: "test",
+			Flags: FlagsFunc(func(fset *flag.FlagSet) {
+				fset.Bool("verbose", false, "enable verbose output")
+				fset.String("config", "/etc/config", "configuration file path")
+				fset.Int("workers", 4, "number of worker threads")
+			}),
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		
+		err := Parse(cmd, []string{})
+		require.NoError(t, err)
+		
+		output := DefaultUsage(cmd)
+		require.Contains(t, output, "Flags:")
+		require.Contains(t, output, "-verbose")
+		require.Contains(t, output, "-config")
+		require.Contains(t, output, "-workers")
+		require.Contains(t, output, "enable verbose output")
+		require.Contains(t, output, "configuration file path")
+		require.Contains(t, output, "number of worker threads")
+		
+		// Test default values are shown
+		require.Contains(t, output, "(default: /etc/config)")
+		require.Contains(t, output, "(default: 4)")
+	})
+
+	t.Run("no flags section when no flags", func(t *testing.T) {
+		t.Parallel()
+		
+		cmd := &Command{
+			Name: "noflag",
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		
+		err := Parse(cmd, []string{})
+		require.NoError(t, err)
+		
+		output := DefaultUsage(cmd)
+		require.NotContains(t, output, "Flags:")
+		require.NotContains(t, output, "Global Flags:")
+	})
+}
