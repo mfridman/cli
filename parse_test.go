@@ -396,6 +396,222 @@ func TestParse(t *testing.T) {
 		err := Parse(cmd, nil)
 		require.NoError(t, err)
 	})
+	t.Run("underscore in command name", func(t *testing.T) {
+		t.Parallel()
+		cmd := &Command{
+			Name: "root",
+			Exec: func(ctx context.Context, s *State) error { return nil },
+			SubCommands: []*Command{
+				{Name: "sub_command", Exec: func(ctx context.Context, s *State) error { return nil }},
+			},
+		}
+		err := Parse(cmd, []string{"sub_command"})
+		require.NoError(t, err)
+	})
+	t.Run("command name starting with number", func(t *testing.T) {
+		t.Parallel()
+		cmd := &Command{
+			Name: "root",
+			SubCommands: []*Command{
+				{Name: "1command"},
+			},
+		}
+		err := Parse(cmd, nil)
+		require.Error(t, err)
+		require.ErrorContains(t, err, `name must start with a letter`)
+	})
+	t.Run("command name with special characters", func(t *testing.T) {
+		t.Parallel()
+		cmd := &Command{
+			Name: "root",
+			SubCommands: []*Command{
+				{Name: "sub@command"},
+			},
+		}
+		err := Parse(cmd, nil)
+		require.Error(t, err)
+		require.ErrorContains(t, err, `name must start with a letter and contain only letters, numbers, dashes (-) or underscores (_)`)
+	})
+	t.Run("very long command name", func(t *testing.T) {
+		t.Parallel()
+		longName := "very-long-command-name-that-exceeds-normal-expectations-and-continues-for-a-while-to-test-edge-cases"
+		cmd := &Command{
+			Name: "root",
+			Exec: func(ctx context.Context, s *State) error { return nil },
+			SubCommands: []*Command{
+				{Name: longName, Exec: func(ctx context.Context, s *State) error { return nil }},
+			},
+		}
+		err := Parse(cmd, []string{longName})
+		require.NoError(t, err)
+	})
+	t.Run("empty args list", func(t *testing.T) {
+		t.Parallel()
+		cmd := &Command{
+			Name: "root",
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		err := Parse(cmd, []string{})
+		require.NoError(t, err)
+		require.Len(t, cmd.state.Args, 0)
+	})
+	t.Run("args with whitespace only", func(t *testing.T) {
+		t.Parallel()
+		cmd := &Command{
+			Name: "root",
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		err := Parse(cmd, []string{"   ", "\t", ""})
+		require.NoError(t, err)
+		require.Equal(t, []string{"   ", "\t", ""}, cmd.state.Args)
+	})
+	t.Run("flag with empty value", func(t *testing.T) {
+		t.Parallel()
+		cmd := &Command{
+			Name: "root",
+			Flags: FlagsFunc(func(fset *flag.FlagSet) {
+				fset.String("config", "", "config file")
+			}),
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		err := Parse(cmd, []string{"--config="})
+		require.NoError(t, err)
+		require.Equal(t, "", GetFlag[string](cmd.state, "config"))
+	})
+	t.Run("boolean flag with explicit false", func(t *testing.T) {
+		t.Parallel()
+		cmd := &Command{
+			Name: "root",
+			Flags: FlagsFunc(func(fset *flag.FlagSet) {
+				fset.Bool("verbose", true, "verbose mode")
+			}),
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		err := Parse(cmd, []string{"--verbose=false"})
+		require.NoError(t, err)
+		require.False(t, GetFlag[bool](cmd.state, "verbose"))
+	})
+	t.Run("deeply nested command hierarchy", func(t *testing.T) {
+		t.Parallel()
+		level5 := &Command{
+			Name: "level5",
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		level4 := &Command{
+			Name: "level4",
+			SubCommands: []*Command{level5},
+		}
+		level3 := &Command{
+			Name: "level3",
+			SubCommands: []*Command{level4},
+		}
+		level2 := &Command{
+			Name: "level2",
+			SubCommands: []*Command{level3},
+		}
+		level1 := &Command{
+			Name: "level1",
+			SubCommands: []*Command{level2},
+		}
+		root := &Command{
+			Name: "root",
+			SubCommands: []*Command{level1},
+		}
+		err := Parse(root, []string{"level1", "level2", "level3", "level4", "level5"})
+		require.NoError(t, err)
+		terminal := root.terminal()
+		require.Equal(t, level5, terminal)
+	})
+	t.Run("many subcommands", func(t *testing.T) {
+		t.Parallel()
+		var subcommands []*Command
+		for i := 0; i < 25; i++ {
+			subcommands = append(subcommands, &Command{
+				Name: "cmd" + string(rune('a'+i%26)),
+				Exec: func(ctx context.Context, s *State) error { return nil },
+			})
+		}
+		root := &Command{
+			Name: "root",
+			SubCommands: subcommands,
+		}
+		err := Parse(root, []string{"cmda"})
+		require.NoError(t, err)
+		terminal := root.terminal()
+		require.Equal(t, "cmda", terminal.Name)
+	})
+	t.Run("duplicate subcommand names", func(t *testing.T) {
+		t.Parallel()
+		cmd := &Command{
+			Name: "root",
+			SubCommands: []*Command{
+				{Name: "duplicate", Exec: func(ctx context.Context, s *State) error { return nil }},
+				{Name: "duplicate", Exec: func(ctx context.Context, s *State) error { return nil }},
+			},
+		}
+		// This library may not check for duplicate names, so just verify it works 
+		err := Parse(cmd, []string{"duplicate"})
+		require.NoError(t, err)
+		// Just ensure it doesn't crash and can parse the first match
+	})
+	t.Run("flag metadata for non-existent flag", func(t *testing.T) {
+		t.Parallel()
+		cmd := &Command{
+			Name: "root",
+			Flags: FlagsFunc(func(fset *flag.FlagSet) {
+				fset.String("existing", "", "existing flag")
+			}),
+			FlagsMetadata: []FlagMetadata{
+				{Name: "existing", Required: true},
+				{Name: "nonexistent", Required: true},
+			},
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		err := Parse(cmd, []string{"--existing=value"})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "required flag -nonexistent not found in flag set")
+	})
+	t.Run("args with special characters", func(t *testing.T) {
+		t.Parallel()
+		cmd := &Command{
+			Name: "root",
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		specialArgs := []string{"file with spaces.txt", "file@symbol.txt", "file\"quote.txt", "file'apostrophe.txt"}
+		err := Parse(cmd, specialArgs)
+		require.NoError(t, err)
+		require.Equal(t, specialArgs, cmd.state.Args)
+	})
+	t.Run("very long argument list", func(t *testing.T) {
+		t.Parallel()
+		cmd := &Command{
+			Name: "root",
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		var longArgList []string
+		for i := 0; i < 100; i++ {
+			longArgList = append(longArgList, "arg"+string(rune('0'+i%10)))
+		}
+		err := Parse(cmd, longArgList)
+		require.NoError(t, err)
+		require.Equal(t, longArgList, cmd.state.Args)
+	})
+	t.Run("mixed flags and args in various orders", func(t *testing.T) {
+		t.Parallel()
+		cmd := &Command{
+			Name: "root",
+			Flags: FlagsFunc(func(fset *flag.FlagSet) {
+				fset.String("flag1", "", "first flag")
+				fset.String("flag2", "", "second flag")
+			}),
+			Exec: func(ctx context.Context, s *State) error { return nil },
+		}
+		err := Parse(cmd, []string{"arg1", "--flag1=val1", "arg2", "--flag2", "val2", "arg3"})
+		require.NoError(t, err)
+		require.Equal(t, "val1", GetFlag[string](cmd.state, "flag1"))
+		require.Equal(t, "val2", GetFlag[string](cmd.state, "flag2"))
+		require.Equal(t, []string{"arg1", "arg2", "arg3"}, cmd.state.Args)
+	})
 }
 
 func getCommand(t *testing.T, c *Command) *Command {

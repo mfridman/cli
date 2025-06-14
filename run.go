@@ -27,7 +27,7 @@ func Run(ctx context.Context, root *Command, options *RunOptions) error {
 		return errors.New("root command is nil")
 	}
 	if root.state == nil || len(root.state.path) == 0 {
-		return errors.New("command has not been parsed")
+		return errors.New("command not parsed")
 	}
 	cmd := root.terminal()
 	if cmd == nil {
