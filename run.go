@@ -10,6 +10,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // RunOptions specifies options for running a command.
@@ -94,22 +95,22 @@ func checkAndSetRunOptions(opt *RunOptions) *RunOptions {
 }
 
 var (
+	once         sync.Once
 	goModuleName string
 )
 
-// GoModuleName returns the Go module name of the current application.
-func GoModuleName() string {
-	if goModuleName == "" {
+func getGoModuleName() string {
+	once.Do(func() {
 		if info, ok := debug.ReadBuildInfo(); ok && info.Main.Path != "" {
 			goModuleName = info.Main.Path
 		}
-	}
+	})
 	return goModuleName
 }
 
 func location(skip int) string {
 	var pcs [1]uintptr
-	// Need to add 2 to skip to account for this function and runtime.Callers.
+	// Need to add 2 to skip to account for this function and runtime.Callers
 	n := runtime.Callers(skip+2, pcs[:])
 	if n == 0 {
 		return "unknown:0"
@@ -118,8 +119,8 @@ func location(skip int) string {
 	frame, _ := runtime.CallersFrames(pcs[:n]).Next()
 
 	// Trim the module name from both function and file paths for cleaner output
-	fn := strings.TrimPrefix(frame.Function, GoModuleName()+"/")
-	file := strings.TrimPrefix(frame.File, GoModuleName()+"/")
+	fn := strings.TrimPrefix(frame.Function, getGoModuleName()+"/")
+	file := strings.TrimPrefix(frame.File, getGoModuleName()+"/")
 
 	return fn + " " + file + ":" + strconv.Itoa(frame.Line)
 }
