@@ -2,11 +2,9 @@ module github.com/mfridman/cli
 
 go 1.21.0
 
-toolchain go1.23.2
-
 require (
 	github.com/mfridman/xflag v0.1.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 )
 
 require (
