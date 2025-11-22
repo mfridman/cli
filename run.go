@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
+	"runtime/debug"
+	"strconv"
+	"strings"
 )
 
 // RunOptions specifies options for running a command.
@@ -46,9 +50,15 @@ func run(ctx context.Context, cmd *Command, state *State) (retErr error) {
 		if r := recover(); r != nil {
 			switch err := r.(type) {
 			case error:
-				retErr = fmt.Errorf("internal: %v", err)
+				// If error is from cli package (e.g., flag type mismatch), don't add location info
+				var intErr *internalError
+				if errors.As(err, &intErr) {
+					retErr = err
+				} else {
+					retErr = fmt.Errorf("panic: %v\n\n%s", err, location(4))
+				}
 			default:
-				retErr = fmt.Errorf("recover: %v", r)
+				retErr = fmt.Errorf("panic: %v", r)
 			}
 		}
 	}()
@@ -81,4 +91,35 @@ func checkAndSetRunOptions(opt *RunOptions) *RunOptions {
 		opt.Stderr = os.Stderr
 	}
 	return opt
+}
+
+var (
+	goModuleName string
+)
+
+// GoModuleName returns the Go module name of the current application.
+func GoModuleName() string {
+	if goModuleName == "" {
+		if info, ok := debug.ReadBuildInfo(); ok && info.Main.Path != "" {
+			goModuleName = info.Main.Path
+		}
+	}
+	return goModuleName
+}
+
+func location(skip int) string {
+	var pcs [1]uintptr
+	// Need to add 2 to skip to account for this function and runtime.Callers.
+	n := runtime.Callers(skip+2, pcs[:])
+	if n == 0 {
+		return "unknown:0"
+	}
+
+	frame, _ := runtime.CallersFrames(pcs[:n]).Next()
+
+	// Trim the module name from both function and file paths for cleaner output
+	fn := strings.TrimPrefix(frame.Function, GoModuleName()+"/")
+	file := strings.TrimPrefix(frame.File, GoModuleName()+"/")
+
+	return fn + " " + file + ":" + strconv.Itoa(frame.Line)
 }

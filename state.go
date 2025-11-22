@@ -52,7 +52,7 @@ func GetFlag[T any](s *State, name string) T {
 					*new(T),
 				)
 				// Flag exists but type doesn't match - this is an internal error
-				panic(err)
+				panic(&internalError{err: err})
 			}
 		}
 	}
@@ -62,5 +62,19 @@ func GetFlag[T any](s *State, name string) T {
 		formatFlagName(name),
 		getCommandPath(s.path),
 	)
-	panic(err)
+	panic(&internalError{err: err})
+}
+
+// internalError is a marker type for errors that originate from the cli package itself. These are
+// programming errors (e.g., flag type mismatches) that should be caught during development.
+type internalError struct {
+	err error
+}
+
+func (e *internalError) Error() string {
+	return e.err.Error()
+}
+
+func (e *internalError) Unwrap() error {
+	return e.err
 }
