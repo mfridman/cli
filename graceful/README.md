@@ -17,7 +17,13 @@ This pattern is useful for HTTP servers, workers, CLIs, and batch jobs.
 ## Installation
 
 ```bash
-go get github.com/mfridman/cli/graceful
+go get github.com/mfridman/cli@latest
+```
+
+And import:
+
+```go
+import "github.com/mfridman/cli/graceful"
 ```
 
 ## Usage
